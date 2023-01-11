@@ -1,0 +1,8 @@
+[Export]
+baked_notebookfile = false
+#pluto_cdn_root = "https://cdn.jsdelivr.net/gh/llips/Pluto.jl@HEAD/frontend/"
+
+[SliderServer]
+host="0.0.0.0"
+port = 8080
+
