@@ -42,7 +42,7 @@ begin
 	md"""
 | | |
 |---|---|
-|subjects |$(@bind nsub PlutoUI.Slider([1,2,4,8,16,32];default=16,show_value=true) )|
+|subjects |$(@bind nsub PlutoUI.Slider([2,4,8,16,32];default=16,show_value=true) )|
 |trials per subject per level |$(@bind ntrials PlutoUI.Slider([1,2,4,8,16,32];default=8,show_value=true) )|
 
 """
