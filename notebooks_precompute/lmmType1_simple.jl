@@ -15,18 +15,35 @@ macro bind(def, element)
 end
 
 # ╔═╡ dbdc1896-9e79-11ed-024d-a387e81c3180
+# import all Packages
 begin
 	using ColorSchemes
-	using AlgebraOfGraphics
-	using CairoMakie
+	using AlgebraOfGraphics#ggplot equivalent
+	using CairoMakie #plotting 
+	using MakieCore
 	using MixedModels
 	using Random
 	using MixedModelsSim
-	using PlutoUI
+	using PlutoUI #sliders
 	using DataFrames
-	using StatsBase
-	using CategoricalArrays
-	using DisplayAs
+	using StatsBase#formulas
+	using CategoricalArrays # categorical variables
+	using DisplayAs # nicer LMM output
+	using GLM # for LinearModel
+	using HypothesisTests # for binomial errorbars
+	using MakieCore # to automatically calculate binomErrors
+end
+
+# ╔═╡ 056f7f72-0cbb-4d3a-a726-7a99f488641a
+module MakieDodge 
+	using HTTP
+	using MakieCore
+	using Makie
+	using CairoMakie
+	 x = HTTP.download("https://gist.githubusercontent.com/behinger/8df41a3e051979a8e8ee0068f1aac6b8/raw/4c6f44603d4432b19c8abe2955eab4962a8ae45f/MakieDodge.jl",tempdir()) 
+	include(x) 
+	export(dodge)
+	export(dodge!)
 end
 
 # ╔═╡ 012201eb-adcf-47f6-8126-fd5582f2b32b
@@ -52,8 +69,13 @@ end
 md"""
 | | | |
 |---|---|---|
-|subj | intercept|$(@bind s_int PlutoUI.Slider(0:0.5:2;default=1,show_value=true) )|
-|subj | condition|$(@bind s_cond PlutoUI.Slider(0:0.5:2;show_value=true) )|
+|subj | intercept|$(@bind s_int  PlutoUI.Slider(0:0.5:2;default=1.5,show_value=true) )|
+|subj | condition|$(@bind s_cond PlutoUI.Slider(0:0.5:2;default=1,show_value=true) )|
+"""
+
+# ╔═╡ 56ae8fde-6e74-40f9-8a31-7293729accc0
+md"""
+For the blogpost I used the values subjects=16, trials=8, intercept=1.5, condition=1.0
 """
 
 # ╔═╡ 06f6f86e-1409-46b7-828d-02372f9ac794
@@ -62,18 +84,77 @@ md"""
 What follows is just the code to generate everything :)
 """
 
-# ╔═╡ ef285287-1fd7-4b7e-986a-57f403e7ac48
-extractP(x) = coeftable(x)|>DataFrame|>x->x[:,"Pr(>|z|)"];
+# ╔═╡ b808036d-b9ad-4203-95ff-48a9dafdffd1
+md"""
+#### Initialize DataFrame and models
+"""
 
-# ╔═╡ 6149659c-0009-4a64-8b86-767e9e70d157
-#|How many simulations for type-1 calculation  |$(@bind simulations PlutoUI.Slider(10:20:500,default=100,show_value=true) )|
-simulations=100;
+# ╔═╡ 19955f36-127f-4a0b-8e7f-c9d9c8459a1b
+begin
+	# generate factorial
+	d = factorproduct((;subject=nlevels(nsub, "S")),(;condition=nlevels(2,"C")),(;trials=1:ntrials))|>DataFrame
+	d.y .= rand(size(d,1)) # dummy response
 
+	form = @formula(y~1+condition+(1+condition|subject))
+	m0 = fit(MixedModel, form, d)
+
+	
+	simulate!(m0,σ=1)
+	d_sim = deepcopy(d)
+	d_sim.y = m0.y
+	d_avg = groupby(d_sim,[:subject,:condition])|>x->combine(x,:y=>mean)
+	
+	mFull = fit(MixedModel,@formula(y~1+condition+zerocorr(1+condition|subject)),d_sim)
+	mInter = fit(MixedModel,@formula(y~1+condition+(1|subject)),d_sim)
+	mSlope = fit(MixedModel,@formula(y~1+condition+(0+condition|subject)),d_sim)
+	mAVG = fit(MixedModel,@formula(y_mean~1+condition+(1|subject)),d_avg)
+	mLM = fit(LinearModel,@formula(y~1+condition),d_sim)
+
+
+end;
+
+# ╔═╡ a746540e-9a51-4659-8d61-b92b3d856b95
+begin
+	simulations=100;
+
+	extractP(x) = coeftable(x)|>DataFrame|>x->x[:,5];
+	
+	function simModels(m0,d_sim,s_int,s_cond;rep=100)
+		m0 = deepcopy(m0)
+		update!(m0; subject=create_re(s_int,s_cond))
+		d_sim = deepcopy(d_sim)
+		results = Vector{Tuple}(undef,rep)
+		for k = 1:rep
+			simulate!(MersenneTwister(k),m0,σ=1,β=[0.,0])
+			refit!(mFull,m0.y)
+			refit!(mInter,m0.y)
+			refit!(mSlope,m0.y)
+		
+			
+			d_sim.y = m0.y
+			
+			mLM = fit(LinearModel,@formula(y~1+condition),d_sim)
+			d_avg = groupby(d_sim,[:subject,:condition])|>x->combine(x,:y=>mean)
+	
+			refit!(mAVG,d_avg.y_mean)
+			results[k] = (
+			:m1=>extractP(mFull),
+			:m2=>extractP(mInter),
+			:m3=>extractP(mSlope),
+			:m4=>extractP(mAVG),
+			:m5=>extractP(mLM),
+			:predictor=>coeftable(mFull)|>DataFrame|>x->x[:,1])
+		end
+		return vcat((DataFrame(r...) for r in results)...) |> x->stack(x,Not(:predictor),variable_name="model",value_name="pvalue")
+	end
+
+	
+end;
 
 # ╔═╡ b5162828-686a-4fe4-971b-aab492f0c479
 md"""
 # Type-1 Errors of various LMMs
-We run $simulations simulations and analyse them with four models. We then check how many p-value¹ are <= α=0.05. We simulate no effect, thus we expect the H₀ to be true. Consequently, our type-1 error should be 5%.
+We run $simulations simulations and analyse them with four models. We then check how many p-value¹ are <= α=0.05. We simulate no effect, thus we know the H₀ is actually always true. Consequently, our type-1 error should be 5%. It will not be perfectly 5% because we don't use many simulations and our test is not perfectly calibrated¹.
 
 
 ¹ We use $\frac{coef}{SE}$ which is mainly fast, not accurate, but the point holds for other procedures as well
@@ -82,63 +163,15 @@ We run $simulations simulations and analyse them with four models. We then check
 
 """
 
-# ╔═╡ a01f6928-0253-417c-8c9c-0428d0a2c0ca
-begin
-	# generate factorial
-	d = factorproduct((;subject=nlevels(nsub, "S")),(;condition=nlevels(2,"C")),(;trials=1:ntrials))|>DataFrame
-	d.y .= rand(size(d,1)) # dummy response
-end;
+# ╔═╡ ef285287-1fd7-4b7e-986a-57f403e7ac48
+md"""
+#### Run Simulations $simulations times and extract P
+"""
 
-# ╔═╡ b808036d-b9ad-4203-95ff-48a9dafdffd1
-begin
-form = @formula(y~1+condition+(1+condition|subject))
-m0 = fit(MixedModel, form, d)
-
-end;
-
-# ╔═╡ 19955f36-127f-4a0b-8e7f-c9d9c8459a1b
-begin
-	simulate!(m0,σ=1)
-	d_sim = deepcopy(d)
-	d_sim.y = m0.y
-	d_avg = groupby(d_sim,[:subject,:condition])|>x->combine(x,:y=>mean)
-	
-	mFull = fit(MixedModel,@formula(y~1+condition+zerocorr(1+condition|subject)),d)
-	mItem = fit(MixedModel,@formula(y~1+condition+(1|subject)),d_sim)
-	mSlope = fit(MixedModel,@formula(y~1+condition+(0+condition|subject)),d_sim)
-	mRANOVA = fit(MixedModel,@formula(y_mean~1+condition+(1|subject)),d_avg)
-
-
-end;
-
-# ╔═╡ a746540e-9a51-4659-8d61-b92b3d856b95
-begin
-	function simModels(m0,d_sim,s_int,s_cond;rep=100)
-		m0 = deepcopy(m0)
-	update!(m0; subject=create_re(s_int,s_cond))
-	d_sim = deepcopy(d_sim)
-	results = Vector{Tuple}(undef,rep)
-	for k = 1:rep
-		simulate!(MersenneTwister(k),m0,σ=1,β=[0.,0])
-		refit!(mFull,m0.y)
-		refit!(mItem,m0.y)
-		refit!(mSlope,m0.y)
-		
-		d_sim.y = m0.y
-		d_avg = groupby(d_sim,[:subject,:condition])|>x->combine(x,:y=>mean)
-
-		refit!(mRANOVA,d_avg.y_mean)
-		results[k] = (
-		:m1Full=>extractP(mFull),
-		:m2Item=>extractP(mItem),
-		:m3Slope=>extractP(mSlope),
-		:m4RANOVA=>extractP(mRANOVA),
-		:predictor=>coeftable(mFull)|>DataFrame|>x->x[:,1])
-	end
-	return vcat((DataFrame(r...) for r in results)...) |> x->stack(x,Not(:predictor),variable_name="model",value_name="pvalue")
-	end
-	
-end
+# ╔═╡ 45ce956d-fe5a-478b-ae67-d5444ee7ece2
+md"""
+#### Collect simulations & evaluate type-1
+"""
 
 # ╔═╡ df68fabe-cbd1-4727-b68d-44c14dd55f9b
 function sim_type1(m0,d_sim;s_int=1.,s_cond=0,rep=simulations)
@@ -151,30 +184,73 @@ function sim_type1(m0,d_sim;s_int=1.,s_cond=0,rep=simulations)
 	
 	r.model = categorical(r.model)
 	recode!(r.model, 
-		"m1Full"=>"(1+c|sub)",
-		"m2Item"=>"(1|sub)",
-		"m3Slope"=>"(0+c|sub)",
-		"m4RANOVA"=>"rANOVA",
+		"m1"=>"(1+c|sub)",
+		"m2"=>"(1|sub)",
+		"m3"=>"(0+c|sub)",
+		"m4"=>"avg:(1|sub)",
+		"m5"=>"no ranef",
 	)
 	
 
 	return r
+end;
+
+# ╔═╡ 8e964d1f-9952-4c94-9d70-4b851b4d52e1
+md"""
+#### Plotting
+"""
+
+# ╔═╡ 4bf788ee-abd9-4d71-a8b5-6e5790499db1
+begin
+	# function to automatically calculate Binomial Errorbars
+	import MakieCore.convert_arguments
+	function MakieCore.convert_arguments(::Type{<:Errorbars}, x, y)
+    xyerr = broadcast(x, y) do x, y
+		e = 100. .*confint(BinomialTest(round(y.*(simulations./100. )),simulations),method=:wilson)
+        Vec4f(x, y,y-e[1],e[2]-y )
+    end
+		
+    (xyerr,)
 end
+end
+	
+
+# ╔═╡ cfc2d1da-bcfe-45ef-966c-814669f3b83e
+begin
+	
+	dpl = data(sim_type1(m0,d_sim;s_int=s_int,s_cond=s_cond))
+	sc = x->x.*100.
+	dpl * mapping(
+			:model=>"",
+			:pvalue_function=>sc=>"type-1 error [%9",
+			color=:predictor,dodge=:predictor)*	(
+			visual(Dodge,plot_fun=errorbars!,alpha=0.5)+
+			visual(Dodge,plot_fun=scatter!)
+		)|>
+	x->draw(x;axis=(
+				title="Type-I from $simulations simulations with random effects: ($s_int + $s_cond|sub)\n (Errorbars depict wilsons binomial confidence intervals)",
+				xticklabelrotation=π/8),
+			palettes=(; color=ColorSchemes.Set1_3.colors))
+	
+	hlines!([5],color=:black,linestyle=:dot)
+	ylims!(0,100)
+	f = current_figure()
+end;
 
 # ╔═╡ 830843f2-4cec-4377-be8b-3798cf4b30de
-let
-
-	d = data(sim_type1(m0,d_sim;s_int=s_int,s_cond=s_cond))
-	
-	d * mapping(:model=>"",
-		:pvalue_function=>"type-1 error %",
-		color=:predictor)*
-	(visual(Lines)+visual(Scatter))|>x->draw(x;axis=(
-	title="($s_int + $s_cond|sub)",xticklabelrotation=π/8),palettes=(; color=ColorSchemes.Set1_3.colors))
-hlines!([0.05],color=:black,linestyle=:dot)
-	ylims!(0,1.)
-	current_figure()
+begin
+	f
 end
+
+# ╔═╡ e4d12cfe-f8d4-4225-b909-1704cc2003b7
+md"""
+#### Importing Packages
+"""
+
+# ╔═╡ 38c3bbcb-ab47-4fc0-9153-2f568300765c
+md"""
+we define a module here to get around Pluto.jl 's problem with including things :)
+"""
 
 # ╔═╡ 00000000-0000-0000-0000-000000000001
 PLUTO_PROJECT_TOML_CONTENTS = """
@@ -185,6 +261,11 @@ CategoricalArrays = "324d7699-5711-5eae-9e2f-1d82baa6b597"
 ColorSchemes = "35d6a980-a343-548e-a6ea-1d62b119f2f4"
 DataFrames = "a93c6f00-e57d-5684-b7b6-d8193f3e46c0"
 DisplayAs = "0b91fe84-8a4c-11e9-3e1d-67c38462b6d6"
+GLM = "38e38edf-8417-5370-95a0-9cbb8c7f171a"
+HTTP = "cd3eb016-35fb-5094-929b-558a96fad6f3"
+HypothesisTests = "09f84164-cd44-5f33-b23f-e6b0d136a0d5"
+Makie = "ee78f7c6-11fb-53f2-987a-cfe4a2b5a57a"
+MakieCore = "20f20a25-4f0e-4fdf-b5d1-57303727442b"
 MixedModels = "ff71e718-51f3-5ec2-a782-8ffcbfa3c316"
 MixedModelsSim = "d5ae56c5-23ca-4a1f-b505-9fc4796fc1fe"
 PlutoUI = "7f904dfe-b85e-4ff6-b463-dae2292396a8"
@@ -198,6 +279,11 @@ CategoricalArrays = "~0.10.7"
 ColorSchemes = "~3.20.0"
 DataFrames = "~1.4.4"
 DisplayAs = "~0.1.6"
+GLM = "~1.8.1"
+HTTP = "~1.7.4"
+HypothesisTests = "~0.10.11"
+Makie = "~0.19.1"
+MakieCore = "~0.6.1"
 MixedModels = "~4.8.2"
 MixedModelsSim = "~0.2.7"
 PlutoUI = "~0.7.49"
@@ -210,7 +296,7 @@ PLUTO_MANIFEST_TOML_CONTENTS = """
 
 julia_version = "1.8.3"
 manifest_format = "2.0"
-project_hash = "c210fcc541b616d9cd3f7e8b54c309a645c6ccfb"
+project_hash = "1f720ee5abd2fa951cff39989fde98985c423f3a"
 
 [[deps.AbstractFFTs]]
 deps = ["ChainRulesCore", "LinearAlgebra"]
@@ -292,6 +378,11 @@ deps = ["JSON", "Logging", "Printf", "Profile", "Statistics", "UUIDs"]
 git-tree-sha1 = "d9a9701b899b30332bbcb3e1679c41cce81fb0e8"
 uuid = "6e4b80f9-dd63-53aa-95a3-0cdb28fa8baf"
 version = "1.3.2"
+
+[[deps.BitFlags]]
+git-tree-sha1 = "43b1a4a8f797c1cddadf60499a8a077d4af2cd2d"
+uuid = "d1d4a3ce-64b1-5f1a-9ba4-7e7e69966f35"
+version = "0.1.7"
 
 [[deps.BitIntegers]]
 deps = ["Random"]
@@ -408,6 +499,16 @@ deps = ["ColorTypes", "FixedPointNumbers", "Reexport"]
 git-tree-sha1 = "fc08e5930ee9a4e03f84bfb5211cb54e7769758a"
 uuid = "5ae59095-9a9b-59fe-a467-6f913c188581"
 version = "0.12.10"
+
+[[deps.Combinatorics]]
+git-tree-sha1 = "08c8b6831dc00bfea825826be0bc8336fc369860"
+uuid = "861a8166-3701-5b0c-9a16-15d98fcdc6aa"
+version = "1.0.2"
+
+[[deps.CommonSolve]]
+git-tree-sha1 = "9441451ee712d1aec22edad62db1a9af3dc8d852"
+uuid = "38540f10-b2f7-11e9-35d8-d573e4eb0ff2"
+version = "0.2.3"
 
 [[deps.CommonSubexpressions]]
 deps = ["MacroTools", "Test"]
@@ -702,6 +803,12 @@ git-tree-sha1 = "53bb909d1151e57e2484c3d1b53e19552b887fb2"
 uuid = "42e2da0e-8278-4e71-bc24-59509adca0fe"
 version = "1.0.2"
 
+[[deps.HTTP]]
+deps = ["Base64", "CodecZlib", "Dates", "IniFile", "Logging", "LoggingExtras", "MbedTLS", "NetworkOptions", "OpenSSL", "Random", "SimpleBufferStream", "Sockets", "URIs", "UUIDs"]
+git-tree-sha1 = "37e4657cd56b11abe3d10cd4a1ec5fbdb4180263"
+uuid = "cd3eb016-35fb-5094-929b-558a96fad6f3"
+version = "1.7.4"
+
 [[deps.HarfBuzz_jll]]
 deps = ["Artifacts", "Cairo_jll", "Fontconfig_jll", "FreeType2_jll", "Glib_jll", "Graphite2_jll", "JLLWrappers", "Libdl", "Libffi_jll", "Pkg"]
 git-tree-sha1 = "129acf094d168394e80ee1dc4bc06ec835e510a3"
@@ -725,6 +832,12 @@ deps = ["Tricks"]
 git-tree-sha1 = "c47c5fa4c5308f27ccaac35504858d8914e102f9"
 uuid = "ac1192a8-f4b3-4bfe-ba22-af5b92cd3ab2"
 version = "0.9.4"
+
+[[deps.HypothesisTests]]
+deps = ["Combinatorics", "Distributions", "LinearAlgebra", "Random", "Rmath", "Roots", "Statistics", "StatsBase"]
+git-tree-sha1 = "ae3b6964d58df11984d22644ce5546eaf20fe95d"
+uuid = "09f84164-cd44-5f33-b23f-e6b0d136a0d5"
+version = "0.10.11"
 
 [[deps.IOCapture]]
 deps = ["Logging", "Random"]
@@ -782,6 +895,11 @@ version = "1.0.0"
 git-tree-sha1 = "5cd07aab533df5170988219191dfad0519391428"
 uuid = "d25df0c9-e2be-5dd7-82c8-3ad0b3e990b9"
 version = "0.1.3"
+
+[[deps.IniFile]]
+git-tree-sha1 = "f550e6e32074c939295eb5ea6de31849ac2c9625"
+uuid = "83e8ac13-25f8-5344-8a64-a9f2b223428f"
+version = "0.5.1"
 
 [[deps.InlineStrings]]
 deps = ["Parsers"]
@@ -1055,6 +1173,12 @@ git-tree-sha1 = "f04120d9adf4f49be242db0b905bea0be32198d1"
 uuid = "0a4f8689-d25c-4efe-a92b-7142dfc1aa53"
 version = "0.5.4"
 
+[[deps.MbedTLS]]
+deps = ["Dates", "MbedTLS_jll", "MozillaCACerts_jll", "Random", "Sockets"]
+git-tree-sha1 = "03a9b9718f5682ecb107ac9f7308991db4ce395b"
+uuid = "739be429-bea8-5141-9913-cc70e7f3736d"
+version = "1.1.7"
+
 [[deps.MbedTLS_jll]]
 deps = ["Artifacts", "Libdl"]
 uuid = "c8ffd9c3-330d-5841-b78e-0817d7145fa1"
@@ -1175,6 +1299,12 @@ version = "3.1.1+0"
 deps = ["Artifacts", "Libdl"]
 uuid = "05823500-19ac-5b8b-9628-191a04bc5112"
 version = "0.8.1+0"
+
+[[deps.OpenSSL]]
+deps = ["BitFlags", "Dates", "MozillaCACerts_jll", "OpenSSL_jll", "Sockets"]
+git-tree-sha1 = "6503b77492fd7fcb9379bf73cd31035670e3c509"
+uuid = "4d8831e6-92b7-49fb-bdf8-b643e874388c"
+version = "1.3.3"
 
 [[deps.OpenSSL_jll]]
 deps = ["Artifacts", "JLLWrappers", "Libdl", "Pkg"]
@@ -1384,6 +1514,12 @@ git-tree-sha1 = "68db32dff12bb6127bac73c209881191bf0efbb7"
 uuid = "f50d1b31-88e8-58de-be2c-1cc44531875f"
 version = "0.3.0+0"
 
+[[deps.Roots]]
+deps = ["ChainRulesCore", "CommonSolve", "Printf", "Setfield"]
+git-tree-sha1 = "a3db467ce768343235032a1ca0830fc64158dadf"
+uuid = "f2b01f46-fcfa-551c-844a-d8ac1e96c665"
+version = "2.0.8"
+
 [[deps.SHA]]
 uuid = "ea8e919c-243c-51af-8825-aaa63cd721ce"
 version = "0.7.0"
@@ -1441,6 +1577,11 @@ deps = ["Random", "Statistics", "Test"]
 git-tree-sha1 = "d263a08ec505853a5ff1c1ebde2070419e3f28e9"
 uuid = "73760f76-fbc4-59ce-8f25-708e95d2df96"
 version = "0.4.0"
+
+[[deps.SimpleBufferStream]]
+git-tree-sha1 = "874e8867b33a00e784c8a7e4b60afe9e037b74e1"
+uuid = "777ac1f9-54b0-4bf8-805c-2214025038e7"
+version = "1.1.0"
 
 [[deps.SimpleTraits]]
 deps = ["InteractiveUtils", "MacroTools"]
@@ -1792,14 +1933,20 @@ version = "3.5.0+0"
 # ╟─556234b2-531e-424f-b790-e2fddff0e53e
 # ╟─c6f160b8-b17c-4d71-8508-c718d283148b
 # ╟─830843f2-4cec-4377-be8b-3798cf4b30de
+# ╟─56ae8fde-6e74-40f9-8a31-7293729accc0
 # ╟─06f6f86e-1409-46b7-828d-02372f9ac794
-# ╠═b808036d-b9ad-4203-95ff-48a9dafdffd1
+# ╟─b808036d-b9ad-4203-95ff-48a9dafdffd1
 # ╠═19955f36-127f-4a0b-8e7f-c9d9c8459a1b
-# ╠═ef285287-1fd7-4b7e-986a-57f403e7ac48
+# ╟─ef285287-1fd7-4b7e-986a-57f403e7ac48
 # ╠═a746540e-9a51-4659-8d61-b92b3d856b95
-# ╠═6149659c-0009-4a64-8b86-767e9e70d157
+# ╟─45ce956d-fe5a-478b-ae67-d5444ee7ece2
 # ╠═df68fabe-cbd1-4727-b68d-44c14dd55f9b
-# ╠═a01f6928-0253-417c-8c9c-0428d0a2c0ca
+# ╟─8e964d1f-9952-4c94-9d70-4b851b4d52e1
+# ╠═4bf788ee-abd9-4d71-a8b5-6e5790499db1
+# ╠═cfc2d1da-bcfe-45ef-966c-814669f3b83e
+# ╟─e4d12cfe-f8d4-4225-b909-1704cc2003b7
 # ╠═dbdc1896-9e79-11ed-024d-a387e81c3180
+# ╟─38c3bbcb-ab47-4fc0-9153-2f568300765c
+# ╠═056f7f72-0cbb-4d3a-a726-7a99f488641a
 # ╟─00000000-0000-0000-0000-000000000001
 # ╟─00000000-0000-0000-0000-000000000002
