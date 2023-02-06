@@ -44,6 +44,7 @@ module MakieDodge
 	include(x) 
 	export(dodge)
 	export(dodge!)
+	export(Dodge)
 end
 
 # ╔═╡ 012201eb-adcf-47f6-8126-fd5582f2b32b
@@ -224,8 +225,8 @@ begin
 			:model=>"",
 			:pvalue_function=>sc=>"type-1 error [%9",
 			color=:predictor,dodge=:predictor)*	(
-			visual(Dodge,plot_fun=errorbars!,alpha=0.5)+
-			visual(Dodge,plot_fun=scatter!)
+			visual(MakieDodge.Dodge,plot_fun=errorbars!,alpha=0.5)+
+			visual(MakieDodge.Dodge,plot_fun=scatter!)
 		)|>
 	x->draw(x;axis=(
 				title="Type-I from $simulations simulations with random effects: ($s_int + $s_cond|sub)\n (Errorbars depict wilsons binomial confidence intervals)",
@@ -241,6 +242,9 @@ end;
 begin
 	f
 end
+
+# ╔═╡ b6927725-6be9-40b2-af61-e11af124624b
+MakieDodge.Dogdge
 
 # ╔═╡ e4d12cfe-f8d4-4225-b909-1704cc2003b7
 md"""
@@ -296,7 +300,7 @@ PLUTO_MANIFEST_TOML_CONTENTS = """
 
 julia_version = "1.8.3"
 manifest_format = "2.0"
-project_hash = "1f720ee5abd2fa951cff39989fde98985c423f3a"
+project_hash = "ca0f87b4cb488689b7f3a20acfaa25f2f87a14b6"
 
 [[deps.AbstractFFTs]]
 deps = ["ChainRulesCore", "LinearAlgebra"]
@@ -1944,6 +1948,7 @@ version = "3.5.0+0"
 # ╟─8e964d1f-9952-4c94-9d70-4b851b4d52e1
 # ╠═4bf788ee-abd9-4d71-a8b5-6e5790499db1
 # ╠═cfc2d1da-bcfe-45ef-966c-814669f3b83e
+# ╠═b6927725-6be9-40b2-af61-e11af124624b
 # ╟─e4d12cfe-f8d4-4225-b909-1704cc2003b7
 # ╠═dbdc1896-9e79-11ed-024d-a387e81c3180
 # ╟─38c3bbcb-ab47-4fc0-9153-2f568300765c
