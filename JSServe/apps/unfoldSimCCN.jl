@@ -5,6 +5,7 @@ using Unfold
 using UnfoldSim
 using Random
 
+using Markdown
 using JSServe
 import JSServe.TailwindDashboard as D
 #---
@@ -50,7 +51,7 @@ volume_app = App(title="Volume") do session::Session
 
  
     
-    dat,evts = gen_data("PinkNoise")    
+    #dat,evts = gen_data("PinkNoise")    
 
     obs_data  = map(gen_data,seed,noiselevel.value,noise_drop.value)
     result = map(calc_model,end_time.value,obs_data)
@@ -61,23 +62,33 @@ volume_app = App(title="Volume") do session::Session
         return Point2f.(time,estimate)
         
     end
-
-    pointsAll = map(hold_toggle) do tog
-        if tog.active
-            return Vector(pointsAll.val...,points1)[end-5:end]
+    hold_toggle = Checkbox(false)#"hold on / off")
+    
+    pointsAll = Observable([[Point2f(1,2),Point2f(1,2)],[Point2f(1,2),Point2f(1,2)]])
+    map(hold_toggle,points1) do tog,p
+        if tog
+       #     @show [pointsAll.val...,[p]]
+       #     @show typeof([pointsAll.val...,[p]])
+          #  pointsAll[] =  [[p]]
+          @show typeof(pointsAll.val)
+          @show size.(pointsAll.val)
+          pointsAll[] =  [pointsAll.val[1],points1.val]
         else
-            return Vector(points1)
+            pointsAll[] =  [points1.val,[]]
         end
     end
+    hlines!(ax,[0],color=:lightgray)
+    vlines!(ax,[0],color=:lightgray)
+    (;time,estimate) = calc_model(0.5,gen_data(1,0,"WhiteNoise"))
+    lines!(ax,time,estimate,color=:gray)
     series!(ax, pointsAll)
     
- 
     ylims!(ax,[-5,10])
     xlims!(ax,[-0.3,2])
 
     seed_button = Button("New random sample")
 
-    hold_toggle = Toggle("Hold On")
+    
 
 
 
@@ -91,10 +102,14 @@ volume_app = App(title="Volume") do session::Session
             noise_drop,
             noiselevel,
             seed_button,
+            D.FlexRow(md"Hold plot? ",hold_toggle),
+
         )),
         D.Card(fig)
     )
 end;
+#route!(server,"/"=>volume_app)
+#---
 if 1 == 0
     server = JSServe.Server(volume_app, "127.0.0.1", 8081)
 #---
