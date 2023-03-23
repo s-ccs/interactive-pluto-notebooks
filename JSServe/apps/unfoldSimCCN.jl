@@ -5,7 +5,8 @@ using Unfold
 using UnfoldSim
 using Random
 
-
+using JSServe
+import JSServe.TailwindDashboard as D
 #---
 begin
     sfreq = 250.
@@ -60,13 +61,25 @@ volume_app = App(title="Volume") do session::Session
         return Point2f.(time,estimate)
         
     end
-    lines!(ax, points1)
+
+    pointsAll = map(hold_toggle) do tog
+        if tog.active
+            return Vector(pointsAll.val...,points1)[end-5:end]
+        else
+            return Vector(points1)
+        end
+    end
+    series!(ax, pointsAll)
     
  
     ylims!(ax,[-5,10])
     xlims!(ax,[-0.3,2])
 
     seed_button = Button("New random sample")
+
+    hold_toggle = Toggle("Hold On")
+
+
 
     map(seed_button) do click
         seed[] = abs.(rand(Int,1)[1])
