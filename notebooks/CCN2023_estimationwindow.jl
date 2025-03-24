@@ -113,7 +113,7 @@ md"""
 |   |   |
 | ---:|:--- |
 |Ground truth| 0s - 0.45s| 
-|Estimation window|-$(ew_time[1]) - $(ew_time[end])s|
+|Estimation window|$(ew_time[1]) - $(ew_time[end])s|
 |Sampling rate| $sfreq Hz|
 |Number of samples| $(size(obs_data.dat,1))|
 |Number of events| $(size(obs_data.evts,1))|
@@ -2072,7 +2072,7 @@ version = "3.5.0+0"
 # ╔═╡ Cell order:
 # ╟─75321386-a344-443e-8d82-98941e886915
 # ╟─bfb78d07-0e20-44fc-932e-d6f0f39c7fd5
-# ╠═d33f8775-633b-4560-ac44-52b85bdbfe31
+# ╟─d33f8775-633b-4560-ac44-52b85bdbfe31
 # ╟─d11172b7-ea4e-4144-aca0-983f17b13214
 # ╠═7f0504d0-7708-4007-b681-8eccdcf4d05e
 # ╟─1fcaaf8d-2e77-4c82-8eef-f8af7cf1b875
