@@ -30,15 +30,24 @@ rng = StableRNG(1);
 # ╔═╡ f37be614-72a4-49c3-92f7-ff7e7554727d
 md"""
 # Population distribution
-The population distribution is the thing we are interested in, but typically don't have the time to measure them all (e.g. all humans)
+The population distribution is the thing we are interested in, but typically don't have the time to measure them all (e.g. all humans).
+
+## Our experiment
+We measure the speed to write a sentence in two input devices. 
+
+To simplify, we measure both devices, **within** one subject. Thus we receive one value:
+
+$difference = speed_A - speed_B$ 
+
+for each subject, reflecting whether there is on average a difference in device-typing speed.
 """
 
 # ╔═╡ 446033a3-4b33-41ec-b6b6-5da8a25b0b82
 md"""
 | | | 
 |---|---|
-Population mean (μ)|$(@bind population_mean PlutoUI.Slider(-10:1:10,default=3,show_value = true))
-Population spread (σ)| $(@bind population_spread PlutoUI.Slider(0.1:1:10,default=5,show_value = true))
+Population mean (μ) in seconds|$(@bind population_mean PlutoUI.Slider(-10:1:10,default=3,show_value = true))
+Population spread (σ) in seconds| $(@bind population_spread PlutoUI.Slider(0.1:1:10,default=5,show_value = true))
 """
 
 # ╔═╡ f294efb0-906f-47e2-8043-6ca29e5f052b
@@ -61,7 +70,7 @@ Sample size|$(@bind sample_size PlutoUI.Slider(5:5:100,default=10,show_value = t
 # ╔═╡ a6d00b5e-d307-48c4-89a4-f47ea840565a
 md"""
 # Sample
-A sample is a measured subset of the population with the size `sample_size` (n=$sample_size), basically what we have time for to measure.
+A sample is a measured subset of the population with the size `sample_size` (n=$sample_size). You'd typically want this to be as large as possible, but typically limited by how much time and money you have.
 """
 
 # ╔═╡ f320df98-038c-491d-962c-8ac971dc7469
@@ -94,13 +103,18 @@ md"""
 We are now in the buisness to figure out whether our population has a mean different to 0 (our null hypothesis $H_0$).
 """
 
+# ╔═╡ fdfdce1e-2dcb-4600-95d4-ea1b6fef0562
+PlutoTeachingTools.tip(md"""
+Translated to our example, this would mean: If $H_0$ is true, then there is **no** difference in typing speed for the different devices.
+	""")
+
 # ╔═╡ aa1c025f-72f9-4d7c-aaa5-995fa5d20fbd
 PlutoTeachingTools.warning_box(md"""
 Just calculating the mean of the sample:
 
 **mean(sample) = $(round(mean(sample),digits=3))**
 
-is not good enough to conclude != 0, if you'd take another sample, you might have a different mean, and you'll never hit the 0 perfectly anyway.
+is not good enough to conclude $H_0$ is false. You'd never expect to measure perfect 0 - if you'd take another sample, you might have a different mean.
 """)
 
 # ╔═╡ 08afd12e-d50e-4db5-9c11-98a362ca3994
@@ -150,12 +164,20 @@ _boot_sample = rand(sample,sample_size)|>sort
 aside(tip(md"Some values in `boot_sample` might be repeated! That is okay for the bootstrap!"),v_offset=-130)
 
 # ╔═╡ fde27ac8-75a2-4b4a-8ca9-675163dc7474
+tip(md"""
+You might have realized: this `_boot_sample` is not centered around our $H_0$. But this is actually a cool side-product! By calculating the bootstrap without centering, and simply looking at the 95%-range of the produced values, we can easily quantiy uncertainty!"""
+)
+
+
+
+# ╔═╡ bdb9967d-8748-4502-9dad-2ce48217feb2
 md"""
-You might have realized: this `_boot_sample` is not yet centered around our $H_0$. We have to translate it, by subtracting the **observed** sample mean.
+## Translating the bootstrap to $H_0$
+To sample from something with **no effect**, we can simply remove the effect prior to resampling
 """
 
 # ╔═╡ 4fcde560-7e9e-4e26-9935-5d96a7f15401
-boot_sample = _boot_sample .- mean(sample)
+boot_sample =  rand(sample .- mean(sample), sample_size)
 
 # ╔═╡ bc33fd51-adac-49fc-a8bd-2279ce5de1e2
 md"""
@@ -170,9 +192,14 @@ md"""
 🎉 our first statistical sample from the $H_0$.
 """
 
+# ╔═╡ 5c024443-b5f4-44a2-9afa-02b4efb92f8b
+md"""
+## Calculating many bootstrap
+"""
+
 # ╔═╡ df6c507d-0b29-464b-897f-01d1b1f4df21
 md"""
-Next, we can calulate the whole distribution of $\delta$($H_0$), and add $\delta^*$ for comparison
+Next, we can calulate the whole distribution of $\delta$($H_0$), and add our actually measured $\delta^*$ for comparison.
 """
 
 # ╔═╡ 4672d2e3-e7f7-43e5-906f-c5b01d467dab
@@ -1865,6 +1892,7 @@ version = "3.6.0+0"
 # ╠═abbaefcd-8ecc-405e-bba5-e89ca95917b8
 # ╠═671e5b42-fa7f-4368-8012-c6357e7bd258
 # ╟─239c4736-eaed-4a65-894e-444ccca8bd05
+# ╟─fdfdce1e-2dcb-4600-95d4-ea1b6fef0562
 # ╟─aa1c025f-72f9-4d7c-aaa5-995fa5d20fbd
 # ╟─08afd12e-d50e-4db5-9c11-98a362ca3994
 # ╟─b21e7155-6315-49e6-818e-d7f7a2a9402e
@@ -1876,10 +1904,12 @@ version = "3.6.0+0"
 # ╠═dc3b8ef0-9d20-4ad4-af3c-4b270cd8eb05
 # ╟─359c52ef-55b9-44a8-9b79-2d8a2dde2cfe
 # ╟─fde27ac8-75a2-4b4a-8ca9-675163dc7474
+# ╟─bdb9967d-8748-4502-9dad-2ce48217feb2
 # ╠═4fcde560-7e9e-4e26-9935-5d96a7f15401
 # ╟─bc33fd51-adac-49fc-a8bd-2279ce5de1e2
 # ╠═96e1ebeb-ca68-4464-bd60-555d61fb42ee
 # ╟─0c3dfdd5-e2ca-4bd3-a81b-27b6881d5850
+# ╟─5c024443-b5f4-44a2-9afa-02b4efb92f8b
 # ╟─df6c507d-0b29-464b-897f-01d1b1f4df21
 # ╠═4672d2e3-e7f7-43e5-906f-c5b01d467dab
 # ╟─942b322c-1dd9-44dc-a534-8956069a1a45
