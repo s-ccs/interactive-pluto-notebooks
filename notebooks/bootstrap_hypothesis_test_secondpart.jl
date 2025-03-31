@@ -16,237 +16,324 @@ macro bind(def, element)
     #! format: on
 end
 
-# ╔═╡ d73cb63e-08a0-11f0-1999-774770e28f90
+# ╔═╡ a5bf6806-0bc0-11f0-3a8a-093a618b75f1
 begin
 	using CairoMakie
-	using PlutoUI, PlutoTeachingTools, PlutoExtras
+	using PlutoUI, PlutoTeachingTools
 	using Distributions, StableRNGs
 	using Random
+	using PlutoExtras
 end
 
-# ╔═╡ 3b1b0afa-1952-436a-84c5-96f9b7ceff02
-rng = StableRNG(1);
-
-# ╔═╡ f37be614-72a4-49c3-92f7-ff7e7554727d
+# ╔═╡ 0a839f36-a403-4e1c-bc5f-767fbb486251
 md"""
-# Population distribution
-The population distribution is the thing we are interested in, but typically don't have the time to measure them all (e.g. all humans).
-
-## Our experiment
-We measure the speed to write a sentence in two input devices. 
-
-To simplify, we measure both devices, **within** one subject. Thus we receive one value:
-
-$difference = speed_A - speed_B$ 
-
-for each subject, reflecting whether there is on average a difference in device-typing speed.
-"""
-
-# ╔═╡ 446033a3-4b33-41ec-b6b6-5da8a25b0b82
-sliders = PlutoExtras.@BondsList "Population Parameters" let
-"Population mean (μ) in seconds" =  @bind population_mean PlutoUI.Slider(-10:1:10,default=3,show_value = true)
-"Population spread (σ) in seconds" = @bind population_spread PlutoUI.Slider(0.1:1:10,default=5,show_value = true)
-end
-
-# ╔═╡ f294efb0-906f-47e2-8043-6ca29e5f052b
-function population_dist(rng::AbstractRNG)
-	pop_dist = Normal(population_mean,population_spread)
-	sample_from_pop_dist = rand(rng,pop_dist)
-	return round(sample_from_pop_dist,digits=1);
-end;
-
-# ╔═╡ ec563602-ecf9-423f-9166-d63cc414f353
-bins = -30:30;
-
-# ╔═╡ a09859b0-1365-414e-8f36-f692bc32397b
-slider_samplesize = PlutoExtras.@BondsList "Sample Size" let
-"Sample Size" =  @bind sample_size PlutoUI.Slider(5:5:100,default=10,show_value = true)
-end
-
-# ╔═╡ a6d00b5e-d307-48c4-89a4-f47ea840565a
-md"""
-# Sample
-A sample is a measured subset of the population with the size `sample_size` (n=$sample_size). You'd typically want this to be as large as possible, but typically limited by how much time and money you have.
-"""
-
-# ╔═╡ f320df98-038c-491d-962c-8ac971dc7469
-get_sample = (n)->sort([population_dist(rng) for _ in 1:n]); # sort just for vis
-
-# ╔═╡ fe7a1ba0-7304-464b-85b6-bfa8e249e522
-let
-	large_sample = get_sample(500_000)
-	f,ax,h = hist(large_sample,bins=bins)
-	vlines!(mean(large_sample),linewidth=5,color=:pink)
-	vlines!(population_mean,color=:black,linestyle=:dash,linewidth=2)
-	f
-end
-
-# ╔═╡ abbaefcd-8ecc-405e-bba5-e89ca95917b8
-sample = get_sample(sample_size)
-
-# ╔═╡ 671e5b42-fa7f-4368-8012-c6357e7bd258
-let
-	f,ax,h = hist(sample,bins=bins)
-	vlines!(mean(sample),linewidth=5,color=:orange)
-	vlines!(population_mean,color=:black,linestyle=:dash,linewidth=2)
-	ylims!(0,12)
-	f
-end
-
-# ╔═╡ 239c4736-eaed-4a65-894e-444ccca8bd05
-md"""
-# Does our population have a mean $!= 0$?
-We are now in the buisness to figure out whether our population has a mean different to 0 (our null hypothesis $H_0$).
-"""
-
-# ╔═╡ fdfdce1e-2dcb-4600-95d4-ea1b6fef0562
-PlutoTeachingTools.tip(md"""
-Translated to our example, this would mean: If $H_0$ is true, then there is **no** difference in typing speed for the different devices.
-	""")
-
-# ╔═╡ aa1c025f-72f9-4d7c-aaa5-995fa5d20fbd
-PlutoTeachingTools.warning_box(md"""
-Just calculating the mean of the sample:
-
-**mean(sample) = $(round(mean(sample),digits=3))**
-
-is not good enough to conclude $H_0$ is false. You'd never expect to measure perfect 0 - if you'd take another sample, you might have a different mean.
-""")
-
-# ╔═╡ 08afd12e-d50e-4db5-9c11-98a362ca3994
-md"""
-## Only one statistical test
+# Reminder: Only one statistical test
 [Allen Downey put's it nicely - there is only one statistical test](https://allendowney.blogspot.com/2016/06/there-is-still-only-one-test.html)
 ![](https://lh4.googleusercontent.com/Bud31guq0w0FvylY57VMR0zHkYqxIpYAfOqgZietyvv1n2ToNEHwHKZWYix8pwct8kDKsZKiwvOWm6PIFEL3gBIQmbakQYHwVT02nn9_H8Fht_zaSBlrRNcqwZa950Vb5nt-5B84)
-
-The logic is striking: To know whether an observed effect $\delta^{*}$ is a surprising outcome, we estimate the probability of observing the effect under our assumed null hypothesis. For this, we simulate data under this $H_0$, calculate the  `test statistic` and see where our $\delta^{*}$ lands in that distribution.
 """
 
-# ╔═╡ b21e7155-6315-49e6-818e-d7f7a2a9402e
+# ╔═╡ 5c04aa9a-5a88-4094-9859-2f87ff573a85
 md"""
-Some definitions:
-- **Test statistic:** we want to use the `mean` (t-value, std, median etc. also possible)
-- **$H_0$:** in our case: the population mean is 0, thus $\mu==0$
+# What if we have one group
+We already had this case, just to briefly recap the code in one place
 """
 
-# ╔═╡ a8ea1af7-750d-462d-90f6-f7a98bcf1cea
+# ╔═╡ cb158c87-b85d-46fc-b74c-c9ed366b47fa
+sliders_onegroup = PlutoExtras.@BondsList "one group" let
+"mean effect (μ)" =  @bind onegroup_effect PlutoUI.Slider(-2:0.5:2,default=0,show_value = true)
+end
+
+# ╔═╡ dbe1cf55-e987-4743-8fa4-31039f494999
+onegroup_sample = randn(StableRNG(1),20) .+ onegroup_effect
+
+# ╔═╡ 282d2aa3-717a-4bfd-952e-cc012ded4443
+onegroup_statistic(x) = mean(x)/std(x);
+
+# ╔═╡ fb492058-80bc-4efb-bc54-5b25f6758677
+function onegroup_bootstrap(sample,stat)
+	sample_h0 = sample .- mean(sample) # center to H₀
+	δ_H0 = stat.(map(x->rand(sample_h0,length(sample_h0)),1:10_000)) # boot-sample
+	δ = stat(sample) # get measured stat
+	mean(abs.(δ_H0) .>= abs(δ)) # pvalue
+end;
+
+# ╔═╡ 21ab6c45-8823-49ad-a934-268b5c11b26d
+onegroup_bootstrap(onegroup_sample,onegroup_statistic)
+
+# ╔═╡ b5c93482-8ea1-4587-b7c0-ac72089cd64c
 md"""
-## How to simulate?
-While there are many ways, we will look at the translated **bootstrap**. 
+# What if we have two groups?
+in a **between** subjects design, we cannot assign each subject in each condition/group. 
+
+Example: 🧓 old vs. young 👶, typing speed tested in a single device.
+
+In that case, we have to adapt our bootstrap function slightly.
+
+A first function could be: `mean(x_1) - mean(x_2)` 
+
+But we remember what we did with the one-group, we divided by the noise. Let's do the same:
+
+`mean(x_🧓) - mean(x_👶) / std(x_both)`
 """
 
-# ╔═╡ fdcc08de-9076-4e9a-bf84-1e9b252639c6
-aside(md"""
-*Insight for the advanced*: Typically, boostrap is introduced via uncertainty estimation, in that case you would receive $\mu$ estimate $\pm$ confidence intervals
-""",v_offset = -50)
-
-# ╔═╡ 27173f86-4235-4935-8d79-25b31e9a0e94
+# ╔═╡ 93769e07-47dc-459e-94cf-8434dd4115af
 md"""
-*Key insight*: The best approximation of your population, is the sample you already have.
+### 1. Simulate data
 """
 
-# ╔═╡ 0dab6b51-e96c-4963-ad12-16a1ad011489
+# ╔═╡ 565b70b9-ad77-4982-b580-6cf78723dadf
+sliders_twogroup = PlutoExtras.@BondsList "two groups" let
+"mean group difference" =  @bind twogroup_effect PlutoUI.Slider(-2:0.5:2,default=0,show_value = true)
+end
+
+# ╔═╡ a4fa1396-5f60-491e-8518-3cacb4188941
+twogroup_sample = [ randn(StableRNG(1),20) .+ 0.,
+					randn(StableRNG(1),20) .+ twogroup_effect]
+
+# ╔═╡ edf7385f-7adc-4da2-973c-410a7762a7a5
 md"""
-We will **resample** the sample, with replacement, treating this as a new sample for the sake of estimating our distribution of $\delta^*$ under $H_0$
+### 2. Define statistic
 """
 
-# ╔═╡ 2d4f51fb-b927-4e4c-9621-11ece70767bb
-sample
+# ╔═╡ 83367f85-6268-4ff6-8c0e-1b6d8bc39a8b
+twogroup_statistic(x) = (mean(x[1]) - mean(x[2])) ./ sqrt(var(x[1])+var(x[2]));
 
-# ╔═╡ dc3b8ef0-9d20-4ad4-af3c-4b270cd8eb05
-_boot_sample = rand(sample,sample_size)|>sort
+# ╔═╡ ebed95d4-bad0-41a9-8c76-4ad2a1f90db5
+md"""
+### 3. Bootstrap!
+"""
 
-# ╔═╡ 359c52ef-55b9-44a8-9b79-2d8a2dde2cfe
-aside(tip(md"Some values in `boot_sample` might be repeated! That is okay for the bootstrap!"),v_offset=-130)
+# ╔═╡ c6e764a8-3e1f-4a1e-9c18-eb9fac358b6d
+function twogroup_bootstrap(sample,stat)
+	_sample_h0 = similar(sample)
+	_sample_h0[1] = sample[1] .- mean(sample[1]) # center group 1
+	_sample_h0[2] = sample[2] .- mean(sample[2]) # center group 2
+	sample_h0 = vcat(_sample_h0...) # concatenate both 0-mean groups
+	
+	scratch = similar(sample) # scratch array
+	
+	δ_H0 = Array{Float64}(undef,10_000)
+	for b = 1:10_000
+		scratch[1] = rand(sample_h0,length(sample[1])) # H₀ sample group 1
+		scratch[2] = rand(sample_h0,length(sample[2])) # H₀ sample group 2
+		
+		δ_H0[b] = stat(scratch)
+	end
+	δ = stat(sample)
+	mean(abs.(δ_H0) .>= abs(δ))
+end;
 
-# ╔═╡ fde27ac8-75a2-4b4a-8ca9-675163dc7474
-tip(md"""
-You might have realized: this `_boot_sample` is not centered around our $H_0$. But this is actually a cool side-product! By calculating the bootstrap without centering, and simply looking at the 95%-range of the produced values, we can easily quantiy uncertainty!"""
+# ╔═╡ f3dea32e-711f-433f-97b1-9aa0d6aaf388
+md"""
+the p-value:
+"""
+
+# ╔═╡ 989b5efe-2d6d-4069-8753-83534f3978aa
+twogroup_bootstrap(twogroup_sample,twogroup_statistic)
+
+# ╔═╡ 3a5a6c57-b1ef-4dfc-8eb4-7652e411f41d
+md"""
+# What if we have more than two groups?
+Let's say we compare 5 devices in typing speed. We could do all pairwise comparisons, but that are 10 comparisons already - hard to keep track! Instead of testing
+
+$μ_A == μ_B$ 
+
+$μ_A == μ_C$ 
+$…$
+$μ_D == μ_E$ 
+
+We could also try to test equivalence of all typing speeds directly
+
+$μ_A == μ_B == μ_C == μ_D == μ_E$ 
+
+How can we achieve that?
+
+"""
+
+# ╔═╡ 658d056f-bedc-49ed-bf26-42fcae300447
+protip(md"""
+For pedagocical reasons, this is not 100% exact. Typically in a bootstrap, one testes whether the distributions are equal, not only their means. Thus, depending on how you exactly set up your bootstrap, differences in skew, bi-modality etc. can also lead to sigificant effects, even though the means are similar.
+
+""")
+
+# ╔═╡ e0260426-41c5-459c-8775-7b98b1097301
+sliders_ngroup = PlutoExtras.@BondsList "n-groups" let
+"Number of Groups" = @bind groups PlutoUI.Slider(2:1:10,default=3,show_value = true)
+"samples per group" = @bind sample_size_per_group PlutoUI.Slider(5:1:40,default=10,show_value = true)
+"effectstrength" = @bind effectsize PlutoUI.Slider(0:0.1:1,default=0.9,show_value = true)
+"population_spread" = @bind population_spread PlutoUI.Slider(1:1:10,default=1,show_value = true)
+end
+
+# ╔═╡ c89b1973-651f-45c1-ad3e-95d7125e1d1f
+md"""
+## Simulation
+First we generate data from $groups number of groups with $sample_size_per_group subjects per group. 
+
+The group means are different by design, how different is determined by `effectstrength`: $effectsize, a scaling factor between 0 and 1
+"""
+
+# ╔═╡ 51697876-cea5-42df-b553-8cdc1abab447
+begin
+	group_indicator = repeat(1:groups,inner=sample_size_per_group)
+	_group_weights = rand(StableRNG(4),0:10,groups)
+	group_weight = _group_weights[group_indicator]
+end;
+
+# ╔═╡ ba6835c9-ae23-41d3-bde0-0d78a92fc309
+total_sample_size = groups * sample_size_per_group
+
+# ╔═╡ 5daeb44a-208e-47a0-84b8-af74dac19d17
+function population_dist(rng::AbstractRNG)
+	# simulate multiple groups with random group-means
+	pop_dist = Normal(0,population_spread)
+	sample_from_pop_dist = rand(rng,pop_dist,total_sample_size) .+ (group_weight .* effectsize)
+	
+	return round.(sample_from_pop_dist,digits=1);
+end;
+
+# ╔═╡ a1aef329-a737-4505-a6ea-eeb51d56d899
+sample = population_dist(StableRNG(1))
+
+# ╔═╡ 4e02bf77-f16b-4ddc-a5ed-9453f41599f1
+md"""
+## The central logic
+We compare the **variances**: the **total variance**, the variability over all data, as if groups does not have an influence - and the **residual variance**, how much variability is left over, once the means have been removed:
+
+$\text{F-Test} = \frac{\text{total variance}}{\text{residual variance}}$
+
+"""
+
+# ╔═╡ 70da02be-ddf2-4f52-946e-8145f44fc5c7
+PlutoTeachingTools.protip(md"""
+This is not yet directly equivalent to an ANOVA F-Test, there one would rather compare:
+
+$F =  \frac{var_{total} - var_{resid}}{var_{resid}} = \frac{var_{between}}{var_{within}}$
+
+Divided respectively by the so-called degree's of freedoms:
+
+$df_{between} =  n_{groups}-1$
+$df_{within} = n_{total}-n_{groups}$
+
+Thus:
+
+$F_{ANOVA} = \frac{var_{between}}{var_{within}}*\frac{df_{within}}{df_{between}}$
+
+The benefit here is that an analytic solution exists, based on some assumption on normality of residuals.
+
+""")
+
+# ╔═╡ 9d2b2b21-8151-404f-a2fc-bfc25c923fe3
+function remove_group_means(sample)
+	_sample = deepcopy(sample)
+	for g = 1:groups
+		g = group_indicator .== g
+		_sample[g] .= _sample[g] .- mean(sample[g])
+	end
+	return _sample .+ mean(sample)
+end
+
+# ╔═╡ 3595c844-459d-4d20-9ee7-bde8679da860
+begin
+	f,ax,h = plot(sample)
+	hlines!(ax, _group_weights.*effectsize, color=collect(cgrad(:Set1_9,groups,categorical=true)))
+
+	ax_right = density(f[1,2],sample,direction = :y)
+
+	ax_left = density(f[1,0],remove_group_means(sample),direction = :y)
+	#linkyaxes!(ax, ax_right.axis, ax_left.axis)
+	ylims!(ax,(-20,20))
+	ylims!(ax_right.axis,(-20,20))
+	ylims!(ax_left.axis,(-20,20))
+
+	ax_left.axis.title = "residual variance"
+	ax_right.axis.title = "total variance"
+	ax.title = "Sample"
+	
+	f
+	
+end
+
+# ╔═╡ f9152f37-7f1f-4181-958d-cbd8c1bc507b
+Ftest_simple(sample) = (var(sample) / var(remove_group_means(sample)));
+
+# ╔═╡ 948baf1e-91a1-424d-93ac-ab56b4a5199d
+Ftest(sample) = (var(sample) / var(remove_group_means(sample)))
+
+# ╔═╡ 9a6995b3-4e11-460c-8b70-3d63a829e1e3
+PlutoTeachingTools.protip(
+md"""
+The proper ANOVA F-test could look something like this.
+
+	function Ftest_ANONVA(sample;normalize=true)
+		var_total = var(sample)
+		var_within = var(remove_group_means(sample))
+	
+		var_between = var_total - var_within
+	
+		if normalize
+			df1 = groups-1
+			df2 = total_sample_size-groups
+	
+			var_between = var_between / df1
+			var_within = var_within/ df2
+		end
+	
+		return (var_between) / (var_within)
+	end
+
+
+Note that it typically is optimized by calculating var_between directly, which is just the variance over the means.
+	"""
+
+	
 )
 
-
-
-# ╔═╡ bdb9967d-8748-4502-9dad-2ce48217feb2
+# ╔═╡ e92b31ba-433a-4c40-9775-d371ebe4ca3b
 md"""
-## Translating the bootstrap to $H_0$
-To sample from something with **no effect**, we can simply remove the effect prior to resampling
+## Simulate from the $H_0$
+We will use the same trick as before, we remove the group-means from the groups, therefore receiving a sample from the $H_0$. 
+
+We bootstrap this $H_0$-sample to receive the null-distribution of our statistic, in this case the statistic is a ratio of variances
 """
 
-# ╔═╡ 4fcde560-7e9e-4e26-9935-5d96a7f15401
-boot_sample =  rand(sample .- mean(sample), sample_size)
-
-# ╔═╡ bc33fd51-adac-49fc-a8bd-2279ce5de1e2
-md"""
-and consequently:
-"""
-
-# ╔═╡ 96e1ebeb-ca68-4464-bd60-555d61fb42ee
-d_H₀ = mean(boot_sample)
-
-# ╔═╡ 0c3dfdd5-e2ca-4bd3-a81b-27b6881d5850
-md"""
-🎉 our first statistical sample from the $H_0$.
-"""
-
-# ╔═╡ 5c024443-b5f4-44a2-9afa-02b4efb92f8b
-md"""
-## Calculating many bootstrap
-"""
-
-# ╔═╡ df6c507d-0b29-464b-897f-01d1b1f4df21
-md"""
-Next, we can calulate the whole distribution of $\delta$($H_0$), and add our actually measured $\delta^*$ for comparison.
-"""
-
-# ╔═╡ 4672d2e3-e7f7-43e5-906f-c5b01d467dab
+# ╔═╡ 1c2abd22-a1a3-44ed-a3a4-28aacc4a42ce
 begin
-	f,ax,h = hist([mean(rand(sample,sample_size) .- mean(sample)) for _ in 1:10_000])
-	vlines!(mean(sample),linewidth=5,color=:orange)
-	xlims!(ax,[-10,10])
-	f
+	_rng = StableRNG(1)
+
+	
+	null_samples = [Ftest(rand(_rng, remove_group_means(sample),total_sample_size)) 					for _ in 1:1000]
+	
+	faxh = hist(null_samples,bins=100)
+	vlines!(Ftest(sample),color=:black,linestyle=:dash,linewidth=2)
+	faxh
 end
 
-
-# ╔═╡ 942b322c-1dd9-44dc-a534-8956069a1a45
+# ╔═╡ 60d4cf7f-203a-4df9-9d5b-53712f07096e
 md"""
-Typically, this graph is crunched down to the (two-sided) p-value:"""
-
-# ╔═╡ 44af24ea-009c-4ae7-a33d-b33b891ee28d
-begin
-H0_samples = [mean(rand(sample,sample_size) .- mean(sample)) for _ in 1:10_000]
-p_val = mean(abs.(H0_samples) .>= abs(mean(sample)))
-end
-
-# ╔═╡ 8fc73731-c1fc-4006-9ade-fb7bd0d1f26a
-PlutoTeachingTools.warning_box(md"""
-Interpretation of p-values can be tricky:
-
-A p-value of e.g. 3% means, that assuming (=simulating from) the $H_0$, only 3% of **simulated** values are **larger than** the **observed** values. 
-
-We might conclude from this, that the $H_0$ is therefore unlikely to have generated the observed sample
-""")
-
-# ╔═╡ 0c035ac8-e278-4534-8195-96f56c40f24a
-danger(md"""
-The p-value does **NOT** show:
-- the probability that the effect is equal to `mean(sample)` or any other value
-- The probability of $H_0$ (subtle)
-""")
-
-
-# ╔═╡ 2aa14559-c79a-4cd1-a752-05e4eb37ebce
-md"""
-# Further ressources
-- [Blogpost: only one statistical test](https://allendowney.blogspot.com/2016/06/there-is-still-only-one-test.html)
-- [Interactive Visualization: Permutation test with Alpacas](https://www.jwilber.me/permutationtest/) - permutation tests are similar to bootstrap, but **without** replacement. In many scenarios, they are to be preferred.
+## p-value
+finally, we compare how many of our $H_0$ samples are larger than what we observed in the data
 """
 
-# ╔═╡ fbc34029-8815-4deb-a15e-5d8f5d59b73b
-TableOfContents(title="🔬 Bootstrap Hypothesis Test")
+# ╔═╡ 53e18380-269d-43e6-9eb7-fd9ec06a35dc
 
-# ╔═╡ be0401ea-d3e7-4027-b16d-895d341e4d84
-PlutoExtras.BondTable([sliders slider_samplesize])
+mean(null_samples .>= Ftest(sample))
 
+# ╔═╡ ad449013-4646-4c5d-96af-d75e55ad0d4a
+TableOfContents(title="🔬 Bootstrap All the things!")
+
+# ╔═╡ 1af73965-57fd-4bb2-942b-c3b34830c494
+PlutoExtras.BondTable([sliders_onegroup,  sliders_twogroup,sliders_ngroup])
+
+
+# ╔═╡ 9051cbad-87f3-443c-898b-fb10c00dce28
+# fix the BondTable
+html"""
+<style>
+bondtable-contents {
+	grid-template-columns:fr !important;
+}
+</style>
+"""
 
 # ╔═╡ 00000000-0000-0000-0000-000000000001
 PLUTO_PROJECT_TOML_CONTENTS = """
@@ -391,9 +478,9 @@ version = "0.13.2"
 
 [[deps.Cairo_jll]]
 deps = ["Artifacts", "Bzip2_jll", "CompilerSupportLibraries_jll", "Fontconfig_jll", "FreeType2_jll", "Glib_jll", "JLLWrappers", "LZO_jll", "Libdl", "Pixman_jll", "Xorg_libXext_jll", "Xorg_libXrender_jll", "Zlib_jll", "libpng_jll"]
-git-tree-sha1 = "009060c9a6168704143100f36ab08f06c2af4642"
+git-tree-sha1 = "2ac646d71d0d24b44f3f8c84da8c9f4d70fb67df"
 uuid = "83423d85-b0ee-5818-9007-b63ccbeb887a"
-version = "1.18.2+1"
+version = "1.18.4+0"
 
 [[deps.ChainRulesCore]]
 deps = ["Compat", "LinearAlgebra"]
@@ -680,9 +767,9 @@ version = "1.4.1"
 
 [[deps.GeometryBasics]]
 deps = ["EarCut_jll", "Extents", "GeoInterface", "IterTools", "LinearAlgebra", "PrecompileTools", "Random", "StaticArrays"]
-git-tree-sha1 = "3ba0e2818cc2ff79a5989d4dca4bc63120a98bd9"
+git-tree-sha1 = "f08692959aa8346272de501d1ddfbc8ea0ab0d31"
 uuid = "5c1252a2-5f33-56bf-86c9-59e7332b4326"
-version = "0.5.5"
+version = "0.5.6"
 
 [[deps.Gettext_jll]]
 deps = ["Artifacts", "CompilerSupportLibraries_jll", "JLLWrappers", "Libdl", "Libiconv_jll", "Pkg", "XML2_jll"]
@@ -824,9 +911,9 @@ weakdeps = ["Unitful"]
 
 [[deps.IntervalArithmetic]]
 deps = ["CRlibm_jll", "LinearAlgebra", "MacroTools", "OpenBLASConsistentFPCSR_jll", "RoundingEmulator"]
-git-tree-sha1 = "0a41ca937ed9b9a3e7c4e42d3ac755b61c403257"
+git-tree-sha1 = "dfbf101df925acf1caa3b15a00b574887cd8472d"
 uuid = "d1acc4aa-44c8-5952-acd4-ba5d80a2a253"
-version = "0.22.24"
+version = "0.22.26"
 
     [deps.IntervalArithmetic.extensions]
     IntervalArithmeticDiffRulesExt = "DiffRules"
@@ -900,9 +987,9 @@ version = "0.21.4"
 
 [[deps.JpegTurbo]]
 deps = ["CEnum", "FileIO", "ImageCore", "JpegTurbo_jll", "TOML"]
-git-tree-sha1 = "fa6d0bcff8583bac20f1ffa708c3913ca605c611"
+git-tree-sha1 = "9496de8fb52c224a2e3f9ff403947674517317d9"
 uuid = "b835a17e-a41a-41e7-81f0-2f016b05efe0"
-version = "0.1.5"
+version = "0.1.6"
 
 [[deps.JpegTurbo_jll]]
 deps = ["Artifacts", "JLLWrappers", "Libdl"]
@@ -1284,9 +1371,9 @@ version = "2.8.1"
 
 [[deps.Pixman_jll]]
 deps = ["Artifacts", "CompilerSupportLibraries_jll", "JLLWrappers", "LLVMOpenMP_jll", "Libdl"]
-git-tree-sha1 = "35621f10a7531bc8fa58f74610b1bfb70a3cfc6b"
+git-tree-sha1 = "db76b1ecd5e9715f3d043cec13b2ec93ce015d53"
 uuid = "30392449-352a-5448-841d-b1acce4e97dc"
-version = "0.43.4+0"
+version = "0.44.2+0"
 
 [[deps.Pkg]]
 deps = ["Artifacts", "Dates", "Downloads", "FileWatching", "LibGit2", "Libdl", "Logging", "Markdown", "Printf", "Random", "SHA", "TOML", "Tar", "UUIDs", "p7zip_jll"]
@@ -1434,9 +1521,9 @@ version = "1.3.1"
 
 [[deps.Revise]]
 deps = ["CodeTracking", "FileWatching", "JuliaInterpreter", "LibGit2", "LoweredCodeUtils", "OrderedCollections", "REPL", "Requires", "UUIDs", "Unicode"]
-git-tree-sha1 = "9bb80533cb9769933954ea4ffbecb3025a783198"
+git-tree-sha1 = "5cf59106f9b47014c58c5053a1ce09c0a2e0333c"
 uuid = "295af30f-e4ad-537b-8983-00126c2a3abe"
-version = "3.7.2"
+version = "3.7.3"
 weakdeps = ["Distributed"]
 
     [deps.Revise.extensions]
@@ -1891,45 +1978,45 @@ version = "3.6.0+0"
 """
 
 # ╔═╡ Cell order:
-# ╠═d73cb63e-08a0-11f0-1999-774770e28f90
-# ╠═3b1b0afa-1952-436a-84c5-96f9b7ceff02
-# ╟─f37be614-72a4-49c3-92f7-ff7e7554727d
-# ╠═f294efb0-906f-47e2-8043-6ca29e5f052b
-# ╠═446033a3-4b33-41ec-b6b6-5da8a25b0b82
-# ╠═fe7a1ba0-7304-464b-85b6-bfa8e249e522
-# ╟─ec563602-ecf9-423f-9166-d63cc414f353
-# ╟─a6d00b5e-d307-48c4-89a4-f47ea840565a
-# ╟─a09859b0-1365-414e-8f36-f692bc32397b
-# ╠═f320df98-038c-491d-962c-8ac971dc7469
-# ╠═abbaefcd-8ecc-405e-bba5-e89ca95917b8
-# ╠═671e5b42-fa7f-4368-8012-c6357e7bd258
-# ╟─239c4736-eaed-4a65-894e-444ccca8bd05
-# ╟─fdfdce1e-2dcb-4600-95d4-ea1b6fef0562
-# ╟─aa1c025f-72f9-4d7c-aaa5-995fa5d20fbd
-# ╟─08afd12e-d50e-4db5-9c11-98a362ca3994
-# ╟─b21e7155-6315-49e6-818e-d7f7a2a9402e
-# ╟─a8ea1af7-750d-462d-90f6-f7a98bcf1cea
-# ╟─fdcc08de-9076-4e9a-bf84-1e9b252639c6
-# ╟─27173f86-4235-4935-8d79-25b31e9a0e94
-# ╟─0dab6b51-e96c-4963-ad12-16a1ad011489
-# ╠═2d4f51fb-b927-4e4c-9621-11ece70767bb
-# ╠═dc3b8ef0-9d20-4ad4-af3c-4b270cd8eb05
-# ╟─359c52ef-55b9-44a8-9b79-2d8a2dde2cfe
-# ╟─fde27ac8-75a2-4b4a-8ca9-675163dc7474
-# ╟─bdb9967d-8748-4502-9dad-2ce48217feb2
-# ╠═4fcde560-7e9e-4e26-9935-5d96a7f15401
-# ╟─bc33fd51-adac-49fc-a8bd-2279ce5de1e2
-# ╠═96e1ebeb-ca68-4464-bd60-555d61fb42ee
-# ╟─0c3dfdd5-e2ca-4bd3-a81b-27b6881d5850
-# ╟─5c024443-b5f4-44a2-9afa-02b4efb92f8b
-# ╟─df6c507d-0b29-464b-897f-01d1b1f4df21
-# ╠═4672d2e3-e7f7-43e5-906f-c5b01d467dab
-# ╟─942b322c-1dd9-44dc-a534-8956069a1a45
-# ╠═44af24ea-009c-4ae7-a33d-b33b891ee28d
-# ╟─8fc73731-c1fc-4006-9ade-fb7bd0d1f26a
-# ╟─0c035ac8-e278-4534-8195-96f56c40f24a
-# ╟─2aa14559-c79a-4cd1-a752-05e4eb37ebce
-# ╟─fbc34029-8815-4deb-a15e-5d8f5d59b73b
-# ╠═be0401ea-d3e7-4027-b16d-895d341e4d84
+# ╠═a5bf6806-0bc0-11f0-3a8a-093a618b75f1
+# ╟─0a839f36-a403-4e1c-bc5f-767fbb486251
+# ╟─5c04aa9a-5a88-4094-9859-2f87ff573a85
+# ╠═dbe1cf55-e987-4743-8fa4-31039f494999
+# ╟─cb158c87-b85d-46fc-b74c-c9ed366b47fa
+# ╠═282d2aa3-717a-4bfd-952e-cc012ded4443
+# ╠═fb492058-80bc-4efb-bc54-5b25f6758677
+# ╠═21ab6c45-8823-49ad-a934-268b5c11b26d
+# ╟─b5c93482-8ea1-4587-b7c0-ac72089cd64c
+# ╟─93769e07-47dc-459e-94cf-8434dd4115af
+# ╠═a4fa1396-5f60-491e-8518-3cacb4188941
+# ╟─565b70b9-ad77-4982-b580-6cf78723dadf
+# ╟─edf7385f-7adc-4da2-973c-410a7762a7a5
+# ╠═83367f85-6268-4ff6-8c0e-1b6d8bc39a8b
+# ╟─ebed95d4-bad0-41a9-8c76-4ad2a1f90db5
+# ╠═c6e764a8-3e1f-4a1e-9c18-eb9fac358b6d
+# ╟─f3dea32e-711f-433f-97b1-9aa0d6aaf388
+# ╠═989b5efe-2d6d-4069-8753-83534f3978aa
+# ╟─3a5a6c57-b1ef-4dfc-8eb4-7652e411f41d
+# ╟─658d056f-bedc-49ed-bf26-42fcae300447
+# ╟─c89b1973-651f-45c1-ad3e-95d7125e1d1f
+# ╠═5daeb44a-208e-47a0-84b8-af74dac19d17
+# ╠═51697876-cea5-42df-b553-8cdc1abab447
+# ╠═ba6835c9-ae23-41d3-bde0-0d78a92fc309
+# ╟─e0260426-41c5-459c-8775-7b98b1097301
+# ╠═a1aef329-a737-4505-a6ea-eeb51d56d899
+# ╟─3595c844-459d-4d20-9ee7-bde8679da860
+# ╟─4e02bf77-f16b-4ddc-a5ed-9453f41599f1
+# ╟─70da02be-ddf2-4f52-946e-8145f44fc5c7
+# ╠═f9152f37-7f1f-4181-958d-cbd8c1bc507b
+# ╠═9d2b2b21-8151-404f-a2fc-bfc25c923fe3
+# ╠═948baf1e-91a1-424d-93ac-ab56b4a5199d
+# ╟─9a6995b3-4e11-460c-8b70-3d63a829e1e3
+# ╟─e92b31ba-433a-4c40-9775-d371ebe4ca3b
+# ╠═1c2abd22-a1a3-44ed-a3a4-28aacc4a42ce
+# ╟─60d4cf7f-203a-4df9-9d5b-53712f07096e
+# ╠═53e18380-269d-43e6-9eb7-fd9ec06a35dc
+# ╟─ad449013-4646-4c5d-96af-d75e55ad0d4a
+# ╠═1af73965-57fd-4bb2-942b-c3b34830c494
+# ╠═9051cbad-87f3-443c-898b-fb10c00dce28
 # ╟─00000000-0000-0000-0000-000000000001
 # ╟─00000000-0000-0000-0000-000000000002
