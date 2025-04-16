@@ -88,7 +88,7 @@ end
 
 # ╔═╡ a4fa1396-5f60-491e-8518-3cacb4188941
 twogroup_sample = [ randn(StableRNG(1),20) .+ 0.,
-					randn(StableRNG(1),20) .+ twogroup_effect]
+					randn(StableRNG(2),20) .+ twogroup_effect]
 
 # ╔═╡ edf7385f-7adc-4da2-973c-410a7762a7a5
 md"""
@@ -1982,14 +1982,14 @@ version = "3.6.0+0"
 # ╟─0a839f36-a403-4e1c-bc5f-767fbb486251
 # ╟─5c04aa9a-5a88-4094-9859-2f87ff573a85
 # ╠═dbe1cf55-e987-4743-8fa4-31039f494999
-# ╟─cb158c87-b85d-46fc-b74c-c9ed366b47fa
+# ╠═cb158c87-b85d-46fc-b74c-c9ed366b47fa
 # ╠═282d2aa3-717a-4bfd-952e-cc012ded4443
 # ╠═fb492058-80bc-4efb-bc54-5b25f6758677
 # ╠═21ab6c45-8823-49ad-a934-268b5c11b26d
 # ╟─b5c93482-8ea1-4587-b7c0-ac72089cd64c
 # ╟─93769e07-47dc-459e-94cf-8434dd4115af
 # ╠═a4fa1396-5f60-491e-8518-3cacb4188941
-# ╟─565b70b9-ad77-4982-b580-6cf78723dadf
+# ╠═565b70b9-ad77-4982-b580-6cf78723dadf
 # ╟─edf7385f-7adc-4da2-973c-410a7762a7a5
 # ╠═83367f85-6268-4ff6-8c0e-1b6d8bc39a8b
 # ╟─ebed95d4-bad0-41a9-8c76-4ad2a1f90db5
@@ -2015,7 +2015,7 @@ version = "3.6.0+0"
 # ╠═1c2abd22-a1a3-44ed-a3a4-28aacc4a42ce
 # ╟─60d4cf7f-203a-4df9-9d5b-53712f07096e
 # ╠═53e18380-269d-43e6-9eb7-fd9ec06a35dc
-# ╟─ad449013-4646-4c5d-96af-d75e55ad0d4a
+# ╠═ad449013-4646-4c5d-96af-d75e55ad0d4a
 # ╠═1af73965-57fd-4bb2-942b-c3b34830c494
 # ╠═9051cbad-87f3-443c-898b-fb10c00dce28
 # ╟─00000000-0000-0000-0000-000000000001
