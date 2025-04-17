@@ -30,33 +30,31 @@ rng = StableRNG(1);
 # ╔═╡ f37be614-72a4-49c3-92f7-ff7e7554727d
 md"""
 # Population distribution
-The population distribution is the thing we are interested in, but typically don't have the time to measure them all (e.g. all humans).
+The population distribution is the typically the "true" entity we are interested in, but we don't have the time to measure them all (e.g. population of all humans).
 
 ## Our experiment
 We measure the speed to write a sentence in two input devices. 
 
-To simplify, we measure both devices, **within** one subject. Thus we receive one value:
+To simplify our calculation, we measure both devices, **within** one subject. Thus we want to investigate one value per subject:
 
 $difference = speed_A - speed_B$ 
 
-for each subject, reflecting whether there is on average a difference in device-typing speed.
+This `difference` reflects whether there is on average a difference in device-typing speed.
 """
 
 # ╔═╡ 446033a3-4b33-41ec-b6b6-5da8a25b0b82
 sliders = PlutoExtras.@BondsList "Population Parameters" let
-"Population mean (μ) in seconds" =  @bind population_mean PlutoUI.Slider(-10:1:10,default=3,show_value = true)
-"Population spread (σ) in seconds" = @bind population_spread PlutoUI.Slider(0.1:1:10,default=5,show_value = true)
+"Population mean (μ) in ms" =  @bind population_mean PlutoUI.Slider(-100:10:100,default=30,show_value = true)
+"Population spread (σ) in ms" = @bind population_spread PlutoUI.Slider(10:10:500,default=50,show_value = true)
 end
 
 # ╔═╡ f294efb0-906f-47e2-8043-6ca29e5f052b
+# draw/simulate a single value from the population
 function population_dist(rng::AbstractRNG)
 	pop_dist = Normal(population_mean,population_spread)
 	sample_from_pop_dist = rand(rng,pop_dist)
 	return round(sample_from_pop_dist,digits=1);
 end;
-
-# ╔═╡ ec563602-ecf9-423f-9166-d63cc414f353
-bins = -30:30;
 
 # ╔═╡ a09859b0-1365-414e-8f36-f692bc32397b
 slider_samplesize = PlutoExtras.@BondsList "Sample Size" let
@@ -66,37 +64,22 @@ end
 # ╔═╡ a6d00b5e-d307-48c4-89a4-f47ea840565a
 md"""
 # Sample
-A sample is a measured subset of the population with the size `sample_size` (n=$sample_size). You'd typically want this to be as large as possible, but typically limited by how much time and money you have.
+Our sample is a measured subset of the population, in our case with the size `sample_size` (n=$sample_size). You'd typically want this to be as large as possible, but are limited by how much time and money you have.
 """
 
 # ╔═╡ f320df98-038c-491d-962c-8ac971dc7469
-get_sample = (n)->sort([population_dist(rng) for _ in 1:n]); # sort just for vis
-
-# ╔═╡ fe7a1ba0-7304-464b-85b6-bfa8e249e522
-let
-	large_sample = get_sample(500_000)
-	f,ax,h = hist(large_sample,bins=bins)
-	vlines!(mean(large_sample),linewidth=5,color=:pink)
-	vlines!(population_mean,color=:black,linestyle=:dash,linewidth=2)
-	f
-end
+function get_sample(n)
+	sample = [population_dist(rng) for _ in 1:n]
+	return sort(sample) # sort just for vis
+end;
 
 # ╔═╡ abbaefcd-8ecc-405e-bba5-e89ca95917b8
 sample = get_sample(sample_size)
 
-# ╔═╡ 671e5b42-fa7f-4368-8012-c6357e7bd258
-let
-	f,ax,h = hist(sample,bins=bins)
-	vlines!(mean(sample),linewidth=5,color=:orange)
-	vlines!(population_mean,color=:black,linestyle=:dash,linewidth=2)
-	ylims!(0,12)
-	f
-end
-
 # ╔═╡ 239c4736-eaed-4a65-894e-444ccca8bd05
 md"""
 # Does our population have a mean $!= 0$?
-We are now in the buisness to figure out whether our population has a mean different to 0 (our null hypothesis $H_0$).
+We are now in the buisness to figure out whether our population (not our sample!) has a mean different to 0 (our null hypothesis $H_0$).
 """
 
 # ╔═╡ fdfdce1e-2dcb-4600-95d4-ea1b6fef0562
@@ -125,7 +108,7 @@ The logic is striking: To know whether an observed effect $\delta^{*}$ is a surp
 # ╔═╡ b21e7155-6315-49e6-818e-d7f7a2a9402e
 md"""
 Some definitions:
-- **Test statistic:** we want to use the `mean` (t-value, std, median etc. also possible)
+- **Test statistic:** For clarity, we will use the `mean`
 - **$H_0$:** in our case: the population mean is 0, thus $\mu==0$
 """
 
@@ -137,7 +120,7 @@ While there are many ways, we will look at the translated **bootstrap**.
 
 # ╔═╡ fdcc08de-9076-4e9a-bf84-1e9b252639c6
 aside(md"""
-*Insight for the advanced*: Typically, boostrap is introduced via uncertainty estimation, in that case you would receive $\mu$ estimate $\pm$ confidence intervals
+*Note*: Typically, boostrap is introduced via uncertainty estimation, in that case you would receive $\mu$ estimate $\pm$ confidence intervals
 """,v_offset = -50)
 
 # ╔═╡ 27173f86-4235-4935-8d79-25b31e9a0e94
@@ -169,8 +152,11 @@ You might have realized: this `_boot_sample` is not centered around our $H_0$. B
 # ╔═╡ bdb9967d-8748-4502-9dad-2ce48217feb2
 md"""
 ## Translating the bootstrap to $H_0$
-To sample from something with **no effect**, we can simply remove the effect prior to resampling
+To "sample" from a $H_0$ population with certainly **no effect**, we can simply remove the mean from our sample, prior to resampling
 """
+
+# ╔═╡ d3e7ca2f-7ba7-4418-92c2-4123f2cbb8d7
+mean(sample .- mean(sample))
 
 # ╔═╡ 4fcde560-7e9e-4e26-9935-5d96a7f15401
 boot_sample =  rand(sample .- mean(sample), sample_size)
@@ -198,14 +184,24 @@ md"""
 Next, we can calulate the whole distribution of $\delta$($H_0$), and add our actually measured $\delta^*$ for comparison.
 """
 
+# ╔═╡ 9c7d1377-1c7f-4e30-a3b8-c659a0c4734b
+n_boot_slider = PlutoExtras.@BondsList "Number of Bootstraps" let
+"n_boot" =  @bind n_boot PlutoUI.Slider(1:100:1000,default=1,show_value = true)
+end
+
 # ╔═╡ 4672d2e3-e7f7-43e5-906f-c5b01d467dab
 begin
-	f,ax,h = hist([mean(rand(sample,sample_size) .- mean(sample)) for _ in 1:10_000])
+	f,ax,h = hist([mean(rand(sample,sample_size) .- mean(sample)) for _ in 1:n_boot])
 	vlines!(mean(sample),linewidth=5,color=:orange)
-	xlims!(ax,[-10,10])
+	xlims!(ax,[-100,100])
 	f
 end
 
+
+# ╔═╡ 0c043275-0816-478a-921e-b2ea4782b70f
+md"""
+## P-Values
+"""
 
 # ╔═╡ 942b322c-1dd9-44dc-a534-8956069a1a45
 md"""
@@ -213,7 +209,7 @@ Typically, this graph is crunched down to the (two-sided) p-value:"""
 
 # ╔═╡ 44af24ea-009c-4ae7-a33d-b33b891ee28d
 begin
-H0_samples = [mean(rand(sample,sample_size) .- mean(sample)) for _ in 1:10_000]
+H0_samples = [mean(rand(sample,sample_size) .- mean(sample)) for _ in 1:n_boot]
 p_val = mean(abs.(H0_samples) .>= abs(mean(sample)))
 end
 
@@ -241,11 +237,38 @@ md"""
 - [Interactive Visualization: Permutation test with Alpacas](https://www.jwilber.me/permutationtest/) - permutation tests are similar to bootstrap, but **without** replacement. In many scenarios, they are to be preferred.
 """
 
+# ╔═╡ 6ee27e5b-6b03-4576-b8ec-d1bcba940c08
+md"""
+# Other Settings
+"""
+
+# ╔═╡ ec563602-ecf9-423f-9166-d63cc414f353
+bins = -300:10:300;
+
+# ╔═╡ fe7a1ba0-7304-464b-85b6-bfa8e249e522
+let
+	large_sample = get_sample(500_000)
+	
+	f,ax,h = hist(large_sample,bins=bins, axis=(;xlabel="Difference in ms"))
+	vlines!(mean(large_sample),linewidth=5,color=:pink)
+	vlines!(population_mean,color=:black,linestyle=:dash,linewidth=2)
+	f
+end
+
+# ╔═╡ 671e5b42-fa7f-4368-8012-c6357e7bd258
+let
+	f,ax,h = hist(sample,bins=bins)
+	vlines!(mean(sample),linewidth=5,color=:orange)
+	vlines!(population_mean,color=:black,linestyle=:dash,linewidth=2)
+	ylims!(0,12)
+	f
+end
+
 # ╔═╡ fbc34029-8815-4deb-a15e-5d8f5d59b73b
 TableOfContents(title="🔬 Bootstrap Hypothesis Test")
 
 # ╔═╡ be0401ea-d3e7-4027-b16d-895d341e4d84
-PlutoExtras.BondTable([sliders slider_samplesize])
+PlutoExtras.BondTable([sliders slider_samplesize n_boot_slider])
 
 
 # ╔═╡ 00000000-0000-0000-0000-000000000001
@@ -1895,9 +1918,8 @@ version = "3.6.0+0"
 # ╠═3b1b0afa-1952-436a-84c5-96f9b7ceff02
 # ╟─f37be614-72a4-49c3-92f7-ff7e7554727d
 # ╠═f294efb0-906f-47e2-8043-6ca29e5f052b
-# ╠═446033a3-4b33-41ec-b6b6-5da8a25b0b82
-# ╠═fe7a1ba0-7304-464b-85b6-bfa8e249e522
-# ╟─ec563602-ecf9-423f-9166-d63cc414f353
+# ╟─446033a3-4b33-41ec-b6b6-5da8a25b0b82
+# ╟─fe7a1ba0-7304-464b-85b6-bfa8e249e522
 # ╟─a6d00b5e-d307-48c4-89a4-f47ea840565a
 # ╟─a09859b0-1365-414e-8f36-f692bc32397b
 # ╠═f320df98-038c-491d-962c-8ac971dc7469
@@ -1917,6 +1939,7 @@ version = "3.6.0+0"
 # ╟─359c52ef-55b9-44a8-9b79-2d8a2dde2cfe
 # ╟─fde27ac8-75a2-4b4a-8ca9-675163dc7474
 # ╟─bdb9967d-8748-4502-9dad-2ce48217feb2
+# ╠═d3e7ca2f-7ba7-4418-92c2-4123f2cbb8d7
 # ╠═4fcde560-7e9e-4e26-9935-5d96a7f15401
 # ╟─bc33fd51-adac-49fc-a8bd-2279ce5de1e2
 # ╠═96e1ebeb-ca68-4464-bd60-555d61fb42ee
@@ -1924,12 +1947,16 @@ version = "3.6.0+0"
 # ╟─5c024443-b5f4-44a2-9afa-02b4efb92f8b
 # ╟─df6c507d-0b29-464b-897f-01d1b1f4df21
 # ╠═4672d2e3-e7f7-43e5-906f-c5b01d467dab
+# ╟─9c7d1377-1c7f-4e30-a3b8-c659a0c4734b
+# ╟─0c043275-0816-478a-921e-b2ea4782b70f
 # ╟─942b322c-1dd9-44dc-a534-8956069a1a45
 # ╠═44af24ea-009c-4ae7-a33d-b33b891ee28d
 # ╟─8fc73731-c1fc-4006-9ade-fb7bd0d1f26a
 # ╟─0c035ac8-e278-4534-8195-96f56c40f24a
 # ╟─2aa14559-c79a-4cd1-a752-05e4eb37ebce
-# ╟─fbc34029-8815-4deb-a15e-5d8f5d59b73b
-# ╠═be0401ea-d3e7-4027-b16d-895d341e4d84
+# ╟─6ee27e5b-6b03-4576-b8ec-d1bcba940c08
+# ╠═ec563602-ecf9-423f-9166-d63cc414f353
+# ╠═fbc34029-8815-4deb-a15e-5d8f5d59b73b
+# ╟─be0401ea-d3e7-4027-b16d-895d341e4d84
 # ╟─00000000-0000-0000-0000-000000000001
 # ╟─00000000-0000-0000-0000-000000000002
