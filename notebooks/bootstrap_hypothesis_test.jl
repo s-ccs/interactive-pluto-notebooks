@@ -24,8 +24,16 @@ begin
 	using Random
 end
 
-# ╔═╡ 3b1b0afa-1952-436a-84c5-96f9b7ceff02
-rng = StableRNG(1);
+# ╔═╡ cbbca1ef-fb08-426c-90a8-04e05368e36d
+html"""
+<h1 style="text-align:center;"> Bootstrap Hypothesis Test</h1>
+
+<div style="text-align:center;font-style:italic">
+CC-by: Benedikt Ehinger <br>
+2025-04-15 <br>
+
+</div>
+"""
 
 # ╔═╡ f37be614-72a4-49c3-92f7-ff7e7554727d
 md"""
@@ -67,15 +75,6 @@ md"""
 Our sample is a measured subset of the population, in our case with the size `sample_size` (n=$sample_size). You'd typically want this to be as large as possible, but are limited by how much time and money you have.
 """
 
-# ╔═╡ f320df98-038c-491d-962c-8ac971dc7469
-function get_sample(n)
-	sample = [population_dist(rng) for _ in 1:n]
-	return sort(sample) # sort just for vis
-end;
-
-# ╔═╡ abbaefcd-8ecc-405e-bba5-e89ca95917b8
-sample = get_sample(sample_size)
-
 # ╔═╡ 239c4736-eaed-4a65-894e-444ccca8bd05
 md"""
 # Does our population have a mean $!= 0$?
@@ -86,15 +85,6 @@ We are now in the buisness to figure out whether our population (not our sample!
 PlutoTeachingTools.tip(md"""
 Translated to our example, this would mean: If $H_0$ is true, then there is **no** difference in typing speed for the different devices.
 	""")
-
-# ╔═╡ aa1c025f-72f9-4d7c-aaa5-995fa5d20fbd
-PlutoTeachingTools.warning_box(md"""
-Just calculating the mean of the sample:
-
-**mean(sample) = $(round(mean(sample),digits=3))**
-
-is not good enough to conclude $H_0$ is false. You'd never expect to measure perfect 0 - if you'd take another sample, you might have a different mean.
-""")
 
 # ╔═╡ 08afd12e-d50e-4db5-9c11-98a362ca3994
 md"""
@@ -133,12 +123,6 @@ md"""
 We will **resample** the sample, with replacement, treating this as a new sample for the sake of estimating our distribution of $\delta^*$ under $H_0$
 """
 
-# ╔═╡ 2d4f51fb-b927-4e4c-9621-11ece70767bb
-sample
-
-# ╔═╡ dc3b8ef0-9d20-4ad4-af3c-4b270cd8eb05
-_boot_sample = rand(sample,sample_size)|>sort
-
 # ╔═╡ 359c52ef-55b9-44a8-9b79-2d8a2dde2cfe
 aside(tip(md"Some values in `boot_sample` might be repeated! That is okay for the bootstrap!"),v_offset=-130)
 
@@ -155,19 +139,10 @@ md"""
 To "sample" from a $H_0$ population with certainly **no effect**, we can simply remove the mean from our sample, prior to resampling
 """
 
-# ╔═╡ d3e7ca2f-7ba7-4418-92c2-4123f2cbb8d7
-mean(sample .- mean(sample))
-
-# ╔═╡ 4fcde560-7e9e-4e26-9935-5d96a7f15401
-boot_sample =  rand(sample .- mean(sample), sample_size)
-
 # ╔═╡ bc33fd51-adac-49fc-a8bd-2279ce5de1e2
 md"""
 and consequently:
 """
-
-# ╔═╡ 96e1ebeb-ca68-4464-bd60-555d61fb42ee
-d_H₀ = mean(boot_sample)
 
 # ╔═╡ 0c3dfdd5-e2ca-4bd3-a81b-27b6881d5850
 md"""
@@ -189,15 +164,6 @@ n_boot_slider = PlutoExtras.@BondsList "Number of Bootstraps" let
 "n_boot" =  @bind n_boot PlutoUI.Slider(1:100:1000,default=1,show_value = true)
 end
 
-# ╔═╡ 4672d2e3-e7f7-43e5-906f-c5b01d467dab
-begin
-	f,ax,h = hist([mean(rand(sample,sample_size) .- mean(sample)) for _ in 1:n_boot])
-	vlines!(mean(sample),linewidth=5,color=:orange)
-	xlims!(ax,[-100,100])
-	f
-end
-
-
 # ╔═╡ 0c043275-0816-478a-921e-b2ea4782b70f
 md"""
 ## P-Values
@@ -206,12 +172,6 @@ md"""
 # ╔═╡ 942b322c-1dd9-44dc-a534-8956069a1a45
 md"""
 Typically, this graph is crunched down to the (two-sided) p-value:"""
-
-# ╔═╡ 44af24ea-009c-4ae7-a33d-b33b891ee28d
-begin
-H0_samples = [mean(rand(sample,sample_size) .- mean(sample)) for _ in 1:n_boot]
-p_val = mean(abs.(H0_samples) .>= abs(mean(sample)))
-end
 
 # ╔═╡ 8fc73731-c1fc-4006-9ade-fb7bd0d1f26a
 PlutoTeachingTools.warning_box(md"""
@@ -239,8 +199,59 @@ md"""
 
 # ╔═╡ 6ee27e5b-6b03-4576-b8ec-d1bcba940c08
 md"""
-# Other Settings
+# Other Settings / Setup
 """
+
+# ╔═╡ 3b1b0afa-1952-436a-84c5-96f9b7ceff02
+rng = StableRNG(1);
+
+# ╔═╡ f320df98-038c-491d-962c-8ac971dc7469
+function get_sample(n)
+	sample = [population_dist(rng) for _ in 1:n]
+	return sort(sample) # sort just for vis
+end;
+
+# ╔═╡ abbaefcd-8ecc-405e-bba5-e89ca95917b8
+sample = get_sample(sample_size)
+
+# ╔═╡ aa1c025f-72f9-4d7c-aaa5-995fa5d20fbd
+PlutoTeachingTools.warning_box(md"""
+Just calculating the mean of the sample:
+
+**mean(sample) = $(round(mean(sample),digits=3))**
+
+is not good enough to conclude $H_0$ is false. You'd never expect to measure perfect 0 - if you'd take another sample, you might have a different mean.
+""")
+
+# ╔═╡ 2d4f51fb-b927-4e4c-9621-11ece70767bb
+sample
+
+# ╔═╡ dc3b8ef0-9d20-4ad4-af3c-4b270cd8eb05
+_boot_sample = rand(sample,sample_size)|>sort
+
+# ╔═╡ d3e7ca2f-7ba7-4418-92c2-4123f2cbb8d7
+mean(sample .- mean(sample))
+
+# ╔═╡ 4fcde560-7e9e-4e26-9935-5d96a7f15401
+boot_sample =  rand(sample .- mean(sample), sample_size)
+
+# ╔═╡ 96e1ebeb-ca68-4464-bd60-555d61fb42ee
+d_H₀ = mean(boot_sample)
+
+# ╔═╡ 4672d2e3-e7f7-43e5-906f-c5b01d467dab
+begin
+	f,ax,h = hist([mean(rand(sample,sample_size) .- mean(sample)) for _ in 1:n_boot])
+	vlines!(mean(sample),linewidth=5,color=:orange)
+	xlims!(ax,[-100,100])
+	f
+end
+
+
+# ╔═╡ 44af24ea-009c-4ae7-a33d-b33b891ee28d
+begin
+H0_samples = [mean(rand(sample,sample_size) .- mean(sample)) for _ in 1:n_boot]
+p_val = mean(abs.(H0_samples) .>= abs(mean(sample)))
+end
 
 # ╔═╡ ec563602-ecf9-423f-9166-d63cc414f353
 bins = -300:10:300;
@@ -1914,8 +1925,7 @@ version = "3.6.0+0"
 """
 
 # ╔═╡ Cell order:
-# ╠═d73cb63e-08a0-11f0-1999-774770e28f90
-# ╠═3b1b0afa-1952-436a-84c5-96f9b7ceff02
+# ╟─cbbca1ef-fb08-426c-90a8-04e05368e36d
 # ╟─f37be614-72a4-49c3-92f7-ff7e7554727d
 # ╠═f294efb0-906f-47e2-8043-6ca29e5f052b
 # ╟─446033a3-4b33-41ec-b6b6-5da8a25b0b82
@@ -1955,8 +1965,10 @@ version = "3.6.0+0"
 # ╟─0c035ac8-e278-4534-8195-96f56c40f24a
 # ╟─2aa14559-c79a-4cd1-a752-05e4eb37ebce
 # ╟─6ee27e5b-6b03-4576-b8ec-d1bcba940c08
+# ╠═d73cb63e-08a0-11f0-1999-774770e28f90
+# ╠═3b1b0afa-1952-436a-84c5-96f9b7ceff02
 # ╠═ec563602-ecf9-423f-9166-d63cc414f353
 # ╠═fbc34029-8815-4deb-a15e-5d8f5d59b73b
-# ╟─be0401ea-d3e7-4027-b16d-895d341e4d84
+# ╠═be0401ea-d3e7-4027-b16d-895d341e4d84
 # ╟─00000000-0000-0000-0000-000000000001
 # ╟─00000000-0000-0000-0000-000000000002
