@@ -226,8 +226,14 @@ is not good enough to conclude $H_0$ is false. You'd never expect to measure per
 # ╔═╡ 2d4f51fb-b927-4e4c-9621-11ece70767bb
 sample
 
+# ╔═╡ f94d59e2-2d3f-46f3-8271-b83e6aa2ff87
+mean(sample)
+
 # ╔═╡ dc3b8ef0-9d20-4ad4-af3c-4b270cd8eb05
 _boot_sample = rand(sample,sample_size)|>sort
+
+# ╔═╡ 0bff26f7-eee1-4447-8a71-2ef77b54ad67
+mean(_boot_sample)-mean(sample)
 
 # ╔═╡ d3e7ca2f-7ba7-4418-92c2-4123f2cbb8d7
 mean(sample .- mean(sample))
@@ -240,12 +246,15 @@ d_H₀ = mean(boot_sample)
 
 # ╔═╡ 4672d2e3-e7f7-43e5-906f-c5b01d467dab
 begin
-	f,ax,h = hist([mean(rand(sample,sample_size) .- mean(sample)) for _ in 1:n_boot])
-	vlines!(mean(sample),linewidth=5,color=:orange)
+	f,ax,h = hist(abs.([mean(rand(sample,sample_size) .- mean(sample)) for _ in 1:n_boot]))
+	vlines!(abs.(mean(sample)),linewidth=5,color=:orange)
 	xlims!(ax,[-100,100])
 	f
 end
 
+
+# ╔═╡ 06497500-8e2e-46e0-8097-9ccd8a01f6af
+mean(sample)
 
 # ╔═╡ 44af24ea-009c-4ae7-a33d-b33b891ee28d
 begin
@@ -1945,8 +1954,10 @@ version = "3.6.0+0"
 # ╟─27173f86-4235-4935-8d79-25b31e9a0e94
 # ╟─0dab6b51-e96c-4963-ad12-16a1ad011489
 # ╠═2d4f51fb-b927-4e4c-9621-11ece70767bb
+# ╠═f94d59e2-2d3f-46f3-8271-b83e6aa2ff87
 # ╠═dc3b8ef0-9d20-4ad4-af3c-4b270cd8eb05
 # ╟─359c52ef-55b9-44a8-9b79-2d8a2dde2cfe
+# ╠═0bff26f7-eee1-4447-8a71-2ef77b54ad67
 # ╟─fde27ac8-75a2-4b4a-8ca9-675163dc7474
 # ╟─bdb9967d-8748-4502-9dad-2ce48217feb2
 # ╠═d3e7ca2f-7ba7-4418-92c2-4123f2cbb8d7
@@ -1960,6 +1971,7 @@ version = "3.6.0+0"
 # ╟─9c7d1377-1c7f-4e30-a3b8-c659a0c4734b
 # ╟─0c043275-0816-478a-921e-b2ea4782b70f
 # ╟─942b322c-1dd9-44dc-a534-8956069a1a45
+# ╠═06497500-8e2e-46e0-8097-9ccd8a01f6af
 # ╠═44af24ea-009c-4ae7-a33d-b33b891ee28d
 # ╟─8fc73731-c1fc-4006-9ade-fb7bd0d1f26a
 # ╟─0c035ac8-e278-4534-8195-96f56c40f24a

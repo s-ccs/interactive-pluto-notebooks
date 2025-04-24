@@ -25,6 +25,17 @@ begin
 	using PlutoExtras
 end
 
+# ╔═╡ 554c98f8-9371-4093-abea-90f11463a3be
+html"""
+<h1 style="text-align:center;"> Bootstrap Hypothesis Test: Part 2</h1>
+
+<div style="text-align:center;font-style:italic">
+CC-by: Benedikt Ehinger <br>
+2025-04-15 <br>
+
+</div>
+"""
+
 # ╔═╡ 0a839f36-a403-4e1c-bc5f-767fbb486251
 md"""
 # Reminder: Only one statistical test
@@ -52,7 +63,8 @@ onegroup_statistic(x) = mean(x)/std(x);
 # ╔═╡ fb492058-80bc-4efb-bc54-5b25f6758677
 function onegroup_bootstrap(sample,stat)
 	sample_h0 = sample .- mean(sample) # center to H₀
-	δ_H0 = stat.(map(x->rand(sample_h0,length(sample_h0)),1:10_000)) # boot-sample
+	H0 = map(x->rand(sample_h0,length(sample_h0)),1:10_000) # boot-sample
+	δ_H0 = stat.(H0) # apply stat to each H0 sample
 	δ = stat(sample) # get measured stat
 	mean(abs.(δ_H0) .>= abs(δ)) # pvalue
 end;
@@ -73,7 +85,7 @@ A first function could be: `mean(x_1) - mean(x_2)`
 
 But we remember what we did with the one-group, we divided by the noise. Let's do the same:
 
-`mean(x_🧓) - mean(x_👶) / std(x_both)`
+`mean(x_🧓) - mean(x_👶) / sqrt(var(x_🧓) + var(x_👶))`
 """
 
 # ╔═╡ 93769e07-47dc-459e-94cf-8434dd4115af
@@ -83,12 +95,21 @@ md"""
 
 # ╔═╡ 565b70b9-ad77-4982-b580-6cf78723dadf
 sliders_twogroup = PlutoExtras.@BondsList "two groups" let
-"mean group difference" =  @bind twogroup_effect PlutoUI.Slider(-2:0.5:2,default=0,show_value = true)
+"mean group difference" =  @bind twogroup_effect PlutoUI.Slider(-1:0.1:1,default=0,show_value = true)
 end
 
 # ╔═╡ a4fa1396-5f60-491e-8518-3cacb4188941
-twogroup_sample = [ randn(StableRNG(1),20) .+ 0.,
-					randn(StableRNG(2),20) .+ twogroup_effect]
+twogroup_sample = [ randn(StableRNG(2),20) .+ 0.,
+					randn(StableRNG(3),20) .+ twogroup_effect]
+
+# ╔═╡ d2d9b058-2a25-49ae-8039-2db1c5ba5df6
+let
+	f = Figure()
+stephist(f[1,1],twogroup_sample[1],bins=-3:0.5:3,linewidth=5)
+	stephist!(twogroup_sample[2],bins = -3:0.5:3,linewidth=5)
+	vlines!(mean.(twogroup_sample),linestyle=:dash,color=[:blue,:orange],linewidth=3)
+	f
+end
 
 # ╔═╡ edf7385f-7adc-4da2-973c-410a7762a7a5
 md"""
@@ -175,7 +196,7 @@ The group means are different by design, how different is determined by `effects
 # ╔═╡ 51697876-cea5-42df-b553-8cdc1abab447
 begin
 	group_indicator = repeat(1:groups,inner=sample_size_per_group)
-	_group_weights = rand(StableRNG(4),0:10,groups)
+	_group_weights = rand(StableRNG(1),0:0.1:10,groups)
 	group_weight = _group_weights[group_indicator]
 end;
 
@@ -186,7 +207,8 @@ total_sample_size = groups * sample_size_per_group
 function population_dist(rng::AbstractRNG)
 	# simulate multiple groups with random group-means
 	pop_dist = Normal(0,population_spread)
-	sample_from_pop_dist = rand(rng,pop_dist,total_sample_size) .+ (group_weight .* effectsize)
+	sample_from_pop_dist = rand(rng,pop_dist,total_sample_size) .+ 
+											(group_weight .* effectsize)
 	
 	return round.(sample_from_pop_dist,digits=1);
 end;
@@ -224,17 +246,17 @@ The benefit here is that an analytic solution exists, based on some assumption o
 
 # ╔═╡ 9d2b2b21-8151-404f-a2fc-bfc25c923fe3
 function remove_group_means(sample)
-	_sample = deepcopy(sample)
+	_sample = deepcopy(sample) # we want a new sample, not modify the old
 	for g = 1:groups
-		g = group_indicator .== g
-		_sample[g] .= _sample[g] .- mean(sample[g])
+		g = group_indicator .== g # find the indices of a group
+		_sample[g] .= _sample[g] .- mean(sample[g]) # remove the group mean
 	end
-	return _sample .+ mean(sample)
+	return _sample .+ mean(sample) # add the group-independent mean back in
 end
 
 # ╔═╡ 3595c844-459d-4d20-9ee7-bde8679da860
 begin
-	f,ax,h = plot(sample)
+	f,ax,h = plot(sample,color=group_indicator,colormap=:Set1_9)
 	hlines!(ax, _group_weights.*effectsize, color=collect(cgrad(:Set1_9,groups,categorical=true)))
 
 	ax_right = density(f[1,2],sample,direction = :y)
@@ -317,6 +339,11 @@ finally, we compare how many of our $H_0$ samples are larger than what we observ
 # ╔═╡ 53e18380-269d-43e6-9eb7-fd9ec06a35dc
 
 mean(null_samples .>= Ftest(sample))
+
+# ╔═╡ f89e7aff-f7cf-4506-9d0b-ed6f3575b957
+md"""
+# Setup
+"""
 
 # ╔═╡ ad449013-4646-4c5d-96af-d75e55ad0d4a
 TableOfContents(title="🔬 Bootstrap All the things!")
@@ -1978,18 +2005,19 @@ version = "3.6.0+0"
 """
 
 # ╔═╡ Cell order:
-# ╠═a5bf6806-0bc0-11f0-3a8a-093a618b75f1
+# ╟─554c98f8-9371-4093-abea-90f11463a3be
 # ╟─0a839f36-a403-4e1c-bc5f-767fbb486251
 # ╟─5c04aa9a-5a88-4094-9859-2f87ff573a85
+# ╟─cb158c87-b85d-46fc-b74c-c9ed366b47fa
 # ╠═dbe1cf55-e987-4743-8fa4-31039f494999
-# ╠═cb158c87-b85d-46fc-b74c-c9ed366b47fa
 # ╠═282d2aa3-717a-4bfd-952e-cc012ded4443
 # ╠═fb492058-80bc-4efb-bc54-5b25f6758677
 # ╠═21ab6c45-8823-49ad-a934-268b5c11b26d
 # ╟─b5c93482-8ea1-4587-b7c0-ac72089cd64c
 # ╟─93769e07-47dc-459e-94cf-8434dd4115af
+# ╟─565b70b9-ad77-4982-b580-6cf78723dadf
 # ╠═a4fa1396-5f60-491e-8518-3cacb4188941
-# ╠═565b70b9-ad77-4982-b580-6cf78723dadf
+# ╠═d2d9b058-2a25-49ae-8039-2db1c5ba5df6
 # ╟─edf7385f-7adc-4da2-973c-410a7762a7a5
 # ╠═83367f85-6268-4ff6-8c0e-1b6d8bc39a8b
 # ╟─ebed95d4-bad0-41a9-8c76-4ad2a1f90db5
@@ -2004,7 +2032,7 @@ version = "3.6.0+0"
 # ╠═ba6835c9-ae23-41d3-bde0-0d78a92fc309
 # ╟─e0260426-41c5-459c-8775-7b98b1097301
 # ╠═a1aef329-a737-4505-a6ea-eeb51d56d899
-# ╟─3595c844-459d-4d20-9ee7-bde8679da860
+# ╠═3595c844-459d-4d20-9ee7-bde8679da860
 # ╟─4e02bf77-f16b-4ddc-a5ed-9453f41599f1
 # ╟─70da02be-ddf2-4f52-946e-8145f44fc5c7
 # ╠═f9152f37-7f1f-4181-958d-cbd8c1bc507b
@@ -2015,8 +2043,10 @@ version = "3.6.0+0"
 # ╠═1c2abd22-a1a3-44ed-a3a4-28aacc4a42ce
 # ╟─60d4cf7f-203a-4df9-9d5b-53712f07096e
 # ╠═53e18380-269d-43e6-9eb7-fd9ec06a35dc
+# ╟─f89e7aff-f7cf-4506-9d0b-ed6f3575b957
 # ╠═ad449013-4646-4c5d-96af-d75e55ad0d4a
 # ╠═1af73965-57fd-4bb2-942b-c3b34830c494
 # ╠═9051cbad-87f3-443c-898b-fb10c00dce28
+# ╠═a5bf6806-0bc0-11f0-3a8a-093a618b75f1
 # ╟─00000000-0000-0000-0000-000000000001
 # ╟─00000000-0000-0000-0000-000000000002
